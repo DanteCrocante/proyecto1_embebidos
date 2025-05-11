@@ -25,6 +25,12 @@ esp_err_t ret2 = ESP_OK;
 
 uint16_t val0[6];
 
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    uint16_t z;
+} dataBMI;
+
 /*! @name  Global array that stores the configuration file of BMI270 */
 const uint8_t bmi270_config_file[] = {
     0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x3d, 0xb1, 0xc8, 0x2e, 0x00, 0x2e, 0x80, 0x2e, 0x91, 0x03, 0x80, 0x2e, 0xbc,
@@ -630,43 +636,63 @@ void lectura(void)
     int bytes_data8 = 12;
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
+    dataBMI acc_ms;
+    dataBMI acc_g;
+    dataBMI gyr_rad;
+    dataBMI acc_ms_window[Window_size];
+    dataBMI acc_g_window[Window_size];
+    dataBMI gyr_rad_window[Window_size];
 
     while (1)
     {
-        bmi_read( &reg_intstatus, &tmp,1);
-        // printf("Init_status.0: %x - mask: %x \n", tmp, (tmp & 0b10000000));
-        //ESP_LOGI("leturabmi", "acc_data_ready: %x - mask(80): %x \n", tmp, (tmp & 0b10000000));
-        
-        if ((tmp & 0b10000000) == 0x80)
-        { 
-            ret= bmi_read( &reg_data, (uint8_t*) data_data8, bytes_data8);
-
-            // for (i=0; i<bytes_data8; i++)
-            // {
-            //     printf("Lectura RAW: %2X \n",data_data8[i]);
-            // }
+        for (int i=0; i<Window_size; i++)
+        {
+            bmi_read( &reg_intstatus, &tmp,1);
+            // printf("Init_status.0: %x - mask: %x \n", tmp, (tmp & 0b10000000));
+            //ESP_LOGI("leturabmi", "acc_data_ready: %x - mask(80): %x \n", tmp, (tmp & 0b10000000));
             
-            acc_x = ((uint16_t) data_data8[1] << 8) | (uint16_t) data_data8[0];
-            acc_y = ((uint16_t) data_data8[3] << 8) | (uint16_t) data_data8[2];
-            acc_z = ((uint16_t) data_data8[5] << 8) | (uint16_t) data_data8[4];
-
-            gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
-            gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
-            gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
-
-
-            printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
-            printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-            printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
-            printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-
-
-            
-            if(ret != ESP_OK){
-                printf("Error lectura: %s \n",esp_err_to_name(ret));
+            if ((tmp & 0b10000000) == 0x80)
+            { 
+                ret= bmi_read( &reg_data, (uint8_t*) data_data8, bytes_data8);
+    
+                // for (i=0; i<bytes_data8; i++)
+                // {
+                //     printf("Lectura RAW: %2X \n",data_data8[i]);
+                // }
+                
+                acc_x = ((uint16_t) data_data8[1] << 8) | (uint16_t) data_data8[0];
+                acc_y = ((uint16_t) data_data8[3] << 8) | (uint16_t) data_data8[2];
+                acc_z = ((uint16_t) data_data8[5] << 8) | (uint16_t) data_data8[4];
+    
+                gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
+                gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
+                gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
+    
+    
+                printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
+                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
+                printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+                acc_ms.x = (int16_t)acc_x*(78.4532/32768);
+                acc_ms.y = (int16_t)acc_y*(78.4532/32768);
+                acc_ms.z = (int16_t)acc_z*(78.4532/32768);
+                acc_g.x = (int16_t)acc_x*(8.000/32768);
+                acc_g.y = (int16_t)acc_y*(8.000/32768);
+                acc_g.z = (int16_t)acc_z*(8.000/32768);
+                gyr_rad.x = (int16_t)gyr_x*(34.90659/32768);
+                gyr_rad.y = (int16_t)gyr_y*(34.90659/32768);
+                gyr_rad.z = (int16_t)gyr_z*(34.90659/32768);
+                acc_ms_window[i] = acc_ms;
+                acc_g_window[i] = acc_g;
+                gyr_rad_window[i] = gyr_rad;
+                
+                if(ret != ESP_OK){
+                    printf("Error lectura: %s \n",esp_err_to_name(ret));
+                }
+    
             }
-
         }
+        vTaskDelay( 1000 /portTICK_PERIOD_MS);
     }
 
 }
