@@ -18,6 +18,7 @@
 #define ACK_VAL					        0x0
 #define NACK_VAL				        0x1
 #define Fodr                            800
+#define Window_size                     20
 
 esp_err_t ret = ESP_OK;
 esp_err_t ret2 = ESP_OK;
