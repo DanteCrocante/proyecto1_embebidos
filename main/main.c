@@ -627,6 +627,20 @@ void internal_status(void)
     printf("Internal Status: %2X\n\n", tmp);
 
 }
+/*
+void get_peaks(dataBMI *data, int size, dataBMI *peaks, int *num_peaks)
+{
+    int count = 0;
+    for (int i = 1; i < size - 1; i++)
+    {
+        if (data[i].x > data[i - 1].x && data[i].x > data[i + 1].x)
+        {
+            peaks[count++] = data[i];
+        }
+    }
+    *num_peaks = count;
+}
+*/
 
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
  * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
@@ -642,6 +656,7 @@ void lectura(void)
     dataBMI acc_ms_window[Window_size];
     dataBMI acc_g_window[Window_size];
     dataBMI gyr_rad_window[Window_size];
+    uint16_t 
 
     while (1)
     {
@@ -695,6 +710,28 @@ void lectura(void)
         vTaskDelay( 1000 /portTICK_PERIOD_MS);
     }
 
+}
+
+/* Configura el modo de consumo del sensor. */*/
+void bmipowermode(uint8_t mode)
+{
+    // 0: normal, 1: performance, 2: low, 3: suspend
+    if(mode == 0) {
+        bmipowermodenormal();
+    }
+    else if(mode == 1) {
+        bmipowermodeperformance();
+    }
+    else if(mode == 2) {
+        bmipowermodelow();
+    }
+    else if(mode == 3) {
+        bmipowermodesuspend()
+    }
+    else {
+        printf("Modo de consumo no reconocido.\n");
+        exit(EXIT_SUCCESS);
+    }
 }
 
 void bmipowermodenormal(void)
