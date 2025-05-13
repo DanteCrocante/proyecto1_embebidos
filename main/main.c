@@ -6,6 +6,7 @@
 #include "math.h"
 #include "esp_task.h"
 #include <string.h>
+#include "FFT.c"
 
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
@@ -26,10 +27,22 @@ esp_err_t ret2 = ESP_OK;
 uint16_t val0[6];
 
 typedef struct {
-    float x;
-    float y;
-    float z;
-} dataBMI;
+    float* x;
+    float* y;
+    float* z;
+    float rmsx;
+    float rmsy;
+    float rmsz;
+    float* fftx_r;
+    float* fftx_i;
+    float* ffty_r;
+    float* ffty_i;
+    float* fftz_r;
+    float* fftz_i;
+    float* peaksx;
+    float* peaksy;
+    float* peaksz;
+} dataFinal;
 
 /*! @name  Global array that stores the configuration file of BMI270 */
 const uint8_t bmi270_config_file[] = {
@@ -628,6 +641,15 @@ void internal_status(void)
 
 }
 
+// Calcula el RMS de un arreglo de datos (floats).
+float RMS(float *datos, int size) {
+    float suma = 0.0;
+    for (int i = 0; i < size; i++) {
+        suma += datos[i] * datos[i];
+    }
+    return sqrtf(suma / size);
+}
+
 
 /*Encontrar los 5 peaks maximos*/
 void encontrar_peaks(float *datos, float *peaks) {
@@ -667,6 +689,10 @@ void lectura(void)
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
 
+
+    // Definición de arreglos para almacenar los datos
+    // Se definen como arreglos de tamaño Window_size
+    // para los datos del BMI270
     float acc_ms_x[Window_size];
     float acc_ms_y[Window_size];
     float acc_ms_z[Window_size];
@@ -676,7 +702,8 @@ void lectura(void)
     float gyr_rad_x[Window_size];
     float gyr_rad_y[Window_size];
     float gyr_rad_z[Window_size];
-
+    // Se definen como arreglos de tamaño 5 para almacenar los peaks
+    // de la ventana de datos
     float acc_ms_x_peaks[5];
     float acc_ms_y_peaks[5];
     float acc_ms_z_peaks[5];
@@ -686,6 +713,11 @@ void lectura(void)
     float gyr_rad_x_peaks[5];
     float gyr_rad_y_peaks[5];
     float gyr_rad_z_peaks[5];
+
+    // Definir objeto para guardar resultados a enviar
+    dataFinal_t dataFinal_acc_ms;
+    dataFinal_t dataFinal_acc_g;
+    dataFinal_t dataFinal_gyr;
 
 
 
@@ -713,16 +745,19 @@ void lectura(void)
                 gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
                 gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
                 gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
-
+                
+                // Variables para la conversión de datos
                 float ms = 78.4532/3276878.4532/32768;
                 float g = 8.000/32768;
                 float rad = 34.90659/32768;
     
-    
+                /*
                 printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/3276878.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
                 printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
                 printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
                 printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+                */
+                // Se almacenan los datos en los arreglos
                 acc_ms_x[i] = (float)acc_x*ms;
                 acc_ms_y[i] = (float)acc_y*ms;
                 acc_ms_z[i] = (float)acc_z*ms;
@@ -740,6 +775,7 @@ void lectura(void)
             }
         }
 
+        // Se obtienen los peaks
         encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
         encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
         encontrar_peaks(acc_ms_z, acc_ms_z_peaks);
@@ -753,6 +789,24 @@ void lectura(void)
         printf("Peaks acc_g_x: %f g, %f g, %f g, %f g, %f g\n", acc_g_x_peaks[0], acc_g_x_peaks[1], acc_g_x_peaks[2], acc_g_x_peaks[3], acc_g_x_peaks[4]);
         printf("Peaks acc_g_y: %f g, %f g, %f g, %f g, %f g\n", acc_g_y_peaks[0], acc_g_y_peaks[1], acc_g_y_peaks[2], acc_g_y_peaks[3], acc_g_y_peaks[4]);
         printf("Peaks acc_g_z: %f g, %f g, %f g, %f g, %f g\n", acc_g_z_peaks[0], acc_g_z_peaks[1], acc_g_z_peaks[2], acc_g_z_peaks[3], acc_g_z_peaks[4]);
+
+        /*
+        dataFinal_acc_ms.x = acc_ms_x;
+        dataFinal_acc_ms.y = acc_ms_y;
+        dataFinal_acc_ms.z = acc_ms_z;
+        dataFinal_acc_ms.x_peaks = acc_ms_x_peaks;
+        dataFinal_acc_ms.y_peaks = acc_ms_y_peaks;
+        dataFinal_acc_ms.z_peaks = acc_ms_z_peaks;
+        dataFinal_acc_g.x = acc_g_x;
+        dataFinal_acc_g.y = acc_g_y;
+        dataFinal_acc_g.z = acc_g_z;
+        dataFinal_acc_g.x_peaks = acc_g_x_peaks;
+        dataFinal_acc_g.y_peaks = acc_g_y_peaks;
+        dataFinal_acc_g.z_peaks = acc_g_z_peaks;
+        dataFinal_gyr.x = gyr_rad_x;
+        dataFinal_gyr.y = gyr_rad_y;
+        dataFinal_gyr.z = gyr_rad_z;
+        */
 
         vTaskDelay( 1000 /portTICK_PERIOD_MS);
     }
