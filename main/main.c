@@ -631,24 +631,31 @@ void internal_status(void)
 
 /*Encontrar los 5 peaks maximos*/
 void encontrar_peaks(float *datos, float *peaks) {
+    // Definir arreglo temporal para almacenar los datos originales
+    float* copy[Window_size];
+    // Copia los datos originales a un nuevo array
+    memcopy(copy, datos, Window_size * sizeof(float));
+
     int i, j;
     float maximo;
 
     for (i = 0; i < 5; i++) {
         maximo = -1.0;
         for (j = 0; j < Window_size; j++) {
-            if (datos[j] > maximo) {
-                maximo = datos[j];
+            if (copy[j] > maximo) {
+                maximo = copy[j];
             }
         }
         peaks[i] = maximo;
         for (j = 0; j < Window_size; j++) {
-            if (datos[j] == maximo) {
-                datos[j] = -1.0;
+            if (copy[j] == maximo) {
+                copy[j] = -1.0;
                 break;
             }
         }
     }
+    // Libera la memoria del arreglo temporal
+    free(copy);
 }
 
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
