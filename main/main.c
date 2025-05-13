@@ -26,9 +26,9 @@ esp_err_t ret2 = ESP_OK;
 uint16_t val0[6];
 
 typedef struct {
-    uint16_t x;
-    uint16_t y;
-    uint16_t z;
+    float x;
+    float y;
+    float z;
 } dataBMI;
 
 /*! @name  Global array that stores the configuration file of BMI270 */
@@ -627,20 +627,29 @@ void internal_status(void)
     printf("Internal Status: %2X\n\n", tmp);
 
 }
-/*
-void get_peaks(dataBMI *data, int size, dataBMI *peaks, int *num_peaks)
-{
-    int count = 0;
-    for (int i = 1; i < size - 1; i++)
-    {
-        if (data[i].x > data[i - 1].x && data[i].x > data[i + 1].x)
-        {
-            peaks[count++] = data[i];
+
+
+/*Encontrar los 5 peaks maximos*/
+void encontrar_peaks(float *datos, float *peaks) {
+    int i, j;
+    float maximo;
+
+    for (i = 0; i < 5; i++) {
+        maximo = -1.0;
+        for (j = 0; j < Window_size; j++) {
+            if (datos[j] > maximo) {
+                maximo = datos[j];
+            }
+        }
+        peaks[i] = maximo;
+        for (j = 0; j < Window_size; j++) {
+            if (datos[j] == maximo) {
+                datos[j] = -1.0;
+                break;
+            }
         }
     }
-    *num_peaks = count;
 }
-*/
 
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
  * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
@@ -650,13 +659,28 @@ void lectura(void)
     int bytes_data8 = 12;
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
-    dataBMI acc_ms;
-    dataBMI acc_g;
-    dataBMI gyr_rad;
-    dataBMI acc_ms_window[Window_size];
-    dataBMI acc_g_window[Window_size];
-    dataBMI gyr_rad_window[Window_size];
-    uint16_t 
+
+    float acc_ms_x[Window_size];
+    float acc_ms_y[Window_size];
+    float acc_ms_z[Window_size];
+    float acc_g_x[Window_size];
+    float acc_g_y[Window_size];
+    float acc_g_z[Window_size];
+    float gyr_rad_x[Window_size];
+    float gyr_rad_y[Window_size];
+    float gyr_rad_z[Window_size];
+
+    float acc_ms_x_peaks[5];
+    float acc_ms_y_peaks[5];
+    float acc_ms_z_peaks[5];
+    float acc_g_x_peaks[5];
+    float acc_g_y_peaks[5];
+    float acc_g_z_peaks[5];
+    float gyr_rad_x_peaks[5];
+    float gyr_rad_y_peaks[5];
+    float gyr_rad_z_peaks[5];
+
+
 
     while (1)
     {
@@ -682,24 +706,25 @@ void lectura(void)
                 gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
                 gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
                 gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
+
+                float ms = 78.4532/3276878.4532/32768;
+                float g = 8.000/32768;
+                float rad = 34.90659/32768;
     
     
-                printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
+                printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/3276878.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
                 printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
                 printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
                 printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-                acc_ms.x = (int16_t)acc_x*(78.4532/32768);
-                acc_ms.y = (int16_t)acc_y*(78.4532/32768);
-                acc_ms.z = (int16_t)acc_z*(78.4532/32768);
-                acc_g.x = (int16_t)acc_x*(8.000/32768);
-                acc_g.y = (int16_t)acc_y*(8.000/32768);
-                acc_g.z = (int16_t)acc_z*(8.000/32768);
-                gyr_rad.x = (int16_t)gyr_x*(34.90659/32768);
-                gyr_rad.y = (int16_t)gyr_y*(34.90659/32768);
-                gyr_rad.z = (int16_t)gyr_z*(34.90659/32768);
-                acc_ms_window[i] = acc_ms;
-                acc_g_window[i] = acc_g;
-                gyr_rad_window[i] = gyr_rad;
+                acc_ms_x[i] = (float)acc_x*ms;
+                acc_ms_y[i] = (float)acc_y*ms;
+                acc_ms_z[i] = (float)acc_z*ms;
+                acc_g_x[i] = (float)acc_x*g;
+                acc_g_y[i] = (float)acc_y*g;
+                acc_g_z[i] = (float)acc_z*g;
+                gyr_rad_x[i] = (float)gyr_x*rad;
+                gyr_rad_y[i] = (float)gyr_y*rad;
+                gyr_rad_z[i] = (float)gyr_z*rad;
                 
                 if(ret != ESP_OK){
                     printf("Error lectura: %s \n",esp_err_to_name(ret));
@@ -707,32 +732,26 @@ void lectura(void)
     
             }
         }
+
+        encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
+        encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
+        encontrar_peaks(acc_ms_z, acc_ms_z_peaks);
+        encontrar_peaks(acc_g_x, acc_g_x_peaks);
+        encontrar_peaks(acc_g_y, acc_g_y_peaks);
+        encontrar_peaks(acc_g_z, acc_g_z_peaks);
+
+        printf("Peaks acc_ms_x: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_x_peaks[0], acc_ms_x_peaks[1], acc_ms_x_peaks[2], acc_ms_x_peaks[3], acc_ms_x_peaks[4]);
+        printf("Peaks acc_ms_y: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_y_peaks[0], acc_ms_y_peaks[1], acc_ms_y_peaks[2], acc_ms_y_peaks[3], acc_ms_y_peaks[4]);
+        printf("Peaks acc_ms_z: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_z_peaks[0], acc_ms_z_peaks[1], acc_ms_z_peaks[2], acc_ms_z_peaks[3], acc_ms_z_peaks[4]);
+        printf("Peaks acc_g_x: %f g, %f g, %f g, %f g, %f g\n", acc_g_x_peaks[0], acc_g_x_peaks[1], acc_g_x_peaks[2], acc_g_x_peaks[3], acc_g_x_peaks[4]);
+        printf("Peaks acc_g_y: %f g, %f g, %f g, %f g, %f g\n", acc_g_y_peaks[0], acc_g_y_peaks[1], acc_g_y_peaks[2], acc_g_y_peaks[3], acc_g_y_peaks[4]);
+        printf("Peaks acc_g_z: %f g, %f g, %f g, %f g, %f g\n", acc_g_z_peaks[0], acc_g_z_peaks[1], acc_g_z_peaks[2], acc_g_z_peaks[3], acc_g_z_peaks[4]);
+
         vTaskDelay( 1000 /portTICK_PERIOD_MS);
     }
 
 }
 
-/* Configura el modo de consumo del sensor. */*/
-void bmipowermode(uint8_t mode)
-{
-    // 0: normal, 1: performance, 2: low, 3: suspend
-    if(mode == 0) {
-        bmipowermodenormal();
-    }
-    else if(mode == 1) {
-        bmipowermodeperformance();
-    }
-    else if(mode == 2) {
-        bmipowermodelow();
-    }
-    else if(mode == 3) {
-        bmipowermodesuspend()
-    }
-    else {
-        printf("Modo de consumo no reconocido.\n");
-        exit(EXIT_SUCCESS);
-    }
-}
 
 void bmipowermodenormal(void)
 {
@@ -744,20 +763,20 @@ void bmipowermodenormal(void)
     uint8_t reg_pwr_conf=0x7C, val_pwr_conf=0x00;
     
     // 0xA8 100hz, 0xA9 para 200Hz, 0xAA 400hz, 0xAB 800hz, 0xAC 1600hz
-    if(Fodr==200 ) {val_acc_conf=0xA9; val_gyr_conf=0xA9;};  
-    else if(Fodr==400) {val_acc_conf=0xAA; val_gyr_conf=0xAA;};  
-    else if(Fodr==800) {val_acc_conf=0xAB; val_gyr_conf=0xAB;};  
-    else if(Fodr==1600) {val_acc_conf=0xAC; val_gyr_conf=0xAC;};  
+    if(Fodr==200 ) {val_acc_conf=0xA9; val_gyr_conf=0xA9;}  
+    else if(Fodr==400) {val_acc_conf=0xAA; val_gyr_conf=0xAA;}  
+    else if(Fodr==800) {val_acc_conf=0xAB; val_gyr_conf=0xAB;}  
+    else if(Fodr==1600) {val_acc_conf=0xAC; val_gyr_conf=0xAC;}  
     else {
         printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     };
-
+    
     bmi_write( &reg_pwr_ctrl, &val_pwr_ctrl,1);
     bmi_write( &reg_acc_conf, &val_acc_conf,1);
     bmi_write( &reg_gyr_conf, &val_gyr_conf,1);
     bmi_write( &reg_pwr_conf, &val_pwr_conf,1);
-
+    
     vTaskDelay( 1000 /portTICK_PERIOD_MS);   
 }
 
@@ -772,20 +791,20 @@ void bmipowermodeperformance(void)
     uint8_t reg_pwr_conf=0x7C, val_pwr_conf=0x00;
     
     // 0xA8 100hz, 0xA9 para 200Hz, 0xAA 400hz, 0xAB 800hz, 0xAC 1600hz
-    if(Fodr==200 ) {val_acc_conf=0xA9; val_gyr_conf=0xE9;};  
-    else if(Fodr==400) {val_acc_conf=0xAA; val_gyr_conf=0xEA;};  
-    else if(Fodr==800) {val_acc_conf=0xAB; val_gyr_conf=0xEB;};  
-    else if(Fodr==1600) {val_acc_conf=0xAC; val_gyr_conf=0xEC;};  
+    if(Fodr==200 ) {val_acc_conf=0xA9; val_gyr_conf=0xA9;}
+    else if(Fodr==400) {val_acc_conf=0xAA; val_gyr_conf=0xAA;}  
+    else if(Fodr==800) {val_acc_conf=0xAB; val_gyr_conf=0xAB;}  
+    else if(Fodr==1600) {val_acc_conf=0xAC; val_gyr_conf=0xAC;}  
     else {
         printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     };
-
+    
     bmi_write( &reg_pwr_ctrl, &val_pwr_ctrl,1);
     bmi_write( &reg_acc_conf, &val_acc_conf,1);
     bmi_write( &reg_gyr_conf, &val_gyr_conf,1);
     bmi_write( &reg_pwr_conf, &val_pwr_conf,1);
-
+    
     vTaskDelay( 1000 /portTICK_PERIOD_MS);   
 }
 
@@ -808,11 +827,11 @@ void bmipowermodelow(void)
         printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     };
-
+    
     bmi_write( &reg_pwr_ctrl, &val_pwr_ctrl,1);
     bmi_write( &reg_acc_conf, &val_acc_conf,1);
     bmi_write( &reg_pwr_conf, &val_pwr_conf,1);
-
+    
     vTaskDelay( 1000 /portTICK_PERIOD_MS);   
 }
 
@@ -822,13 +841,34 @@ void bmipowermodesuspend(void)
     //400Hz en datos acc, filter: performance optimized, acc_range +/-8g (1g = 9.80665 m/s2, alcance max: 78.4532 m/s2, 16 bit= 65536 => 1bit = 78.4532/32768 m/s2)
     uint8_t reg_pwr_ctrl=0x7D, val_pwr_ctrl=0x00;
     uint8_t reg_pwr_conf=0x7C, val_pwr_conf=0x01;
-
+    
     bmi_write( &reg_pwr_ctrl, &val_pwr_ctrl,1);
     bmi_write( &reg_pwr_conf, &val_pwr_conf,1);
-
+    
     vTaskDelay( 1000 /portTICK_PERIOD_MS);   
 }
 
+/* Configura el modo de consumo del sensor. */
+void bmipowermode(int mode)
+{
+    // 0: normal, 1: performance, 2: low, 3: suspend
+    if(mode == 0) {
+        bmipowermodenormal();
+    }
+    else if(mode == 1) {
+        bmipowermodeperformance();
+    }
+    else if(mode == 2) {
+        bmipowermodelow();
+    }
+    else if(mode == 3) {
+        bmipowermodesuspend();
+    }
+    else {
+        printf("Modo de consumo no reconocido.\n");
+        exit(EXIT_SUCCESS);
+    }
+}
 
 void app_main(void) {       
     ESP_ERROR_CHECK(bmi_init());
@@ -836,7 +876,7 @@ void app_main(void) {
     chipid();
     initialization();
     check_initialization();
-    bmipowermode();
+    bmipowermode(0);
     internal_status();    
     printf("Comienza lectura\n\n");
     lectura();
