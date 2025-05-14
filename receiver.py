@@ -2,7 +2,7 @@ import serial, time
 from struct import pack, unpack
 
 # Se configura el puerto y el BAUD_Rate
-PORT = '/dev/ttyUSB1'  # Esto depende del sistema operativo
+PORT = '/dev/ttyUSB0'  # Esto depende del sistema operativo
 BAUD_RATE = 115200  # Debe coincidir con la configuracion de la ESP32
 
 # Se abre la conexion serial
@@ -19,13 +19,13 @@ def receive_response():
     return response
 
 def receive_data():
-    """ Funcion que recibe tres floats (fff) de la ESP32 
+    """ Funcion que recibe nueve floats (fffffffff) de la ESP32 
     y los imprime en consola """
     data = receive_response()
 
     print("llegó hasta acá1")
 
-    data = unpack("fff", data)
+    data = unpack("fffffffff", data)
 
     print(f'Received: {data}')
     return data
@@ -45,18 +45,20 @@ receive_response()
 
 # Se lee data por la conexion serial
 counter = 0
+err_counter = 0
 while True:
     if ser.in_waiting > 0:
         try:
             message = receive_data()
         except:
+            err_counter += 1
             print('Error en leer mensaje')
             continue
         else: 
             counter += 1
             print(counter)
         finally:
-            if counter == 10:
+            if counter == 10 or err_counter == 10:
                 print('Lecturas listas!')
                 break
 

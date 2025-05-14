@@ -7,6 +7,16 @@
 #include "esp_task.h"
 #include <string.h>
 
+// ============ includes para comunicación UART ============
+
+#include <stdlib.h>
+#include <time.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/uart.h"
+
+// =========================================================
+
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
 #define I2C_MASTER_FREQ_HZ				10000		
@@ -18,6 +28,57 @@
 #define ACK_VAL					        0x0
 #define NACK_VAL				        0x1
 #define Fodr                            800
+
+// ============ defines para comunicación UART ============
+
+#define BUF_SIZE (128)
+#define TXD_PIN 1
+#define RXD_PIN 3
+#define UART_NUM UART_NUM_0
+#define BAUD_RATE 115200
+#define REDIRECT_LOGS 1 
+
+// ========================================================
+
+// ============ funciones para comunicación UART ============
+
+// Function for sending things to UART1
+static int uart1_printf(const char *str, va_list ap) {
+    char *buf;
+    vasprintf(&buf, str, ap);
+    uart_write_bytes(UART_NUM_1, buf, strlen(buf));
+    free(buf);
+    return 0;
+}
+
+// Setup of UART connections 0 and 1, and try to redirect logs to UART1 if asked
+static void uart_setup() {
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+    uart_param_config(UART_NUM_0, &uart_config);
+    uart_param_config(UART_NUM_1, &uart_config);
+    uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, 0);
+    uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, 0);
+
+    // Redirect ESP log to UART1
+    if (REDIRECT_LOGS) {
+        esp_log_set_vprintf(uart1_printf);
+    }
+}
+
+// Read UART_num for input with timeout of 1 sec
+int serial_read(char *buffer, int size){
+    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
+    return len;
+}
+
+// ==========================================================
 
 esp_err_t ret = ESP_OK;
 esp_err_t ret2 = ESP_OK;
@@ -523,12 +584,12 @@ void chipid(void) {
     uint8_t tmp;
     
     bmi_read( &reg_id, &tmp,1);
-    printf("valor de CHIPID: %2X \n\n",tmp);
+    //printf("valor de CHIPID: %2X \n\n",tmp);
     if(tmp == 0x24){
-        printf("Chip reconocido.\n\n");
+        //printf("Chip reconocido.\n\n");
     }
     if(tmp != 0x24) {
-        printf("Chip no reconocido. \nCHIP ID: %2x\n\n", tmp); // %2X
+        //printf("Chip no reconocido. \nCHIP ID: %2x\n\n", tmp); // %2X
         exit(EXIT_SUCCESS);
     }
 }
@@ -540,10 +601,10 @@ void softreset(void) {
     ret = bmi_write( &reg_softreset, &val_softreset,1);
     vTaskDelay(1000 /portTICK_PERIOD_MS);
     if(ret != ESP_OK){
-        printf("\nError en softreset: %s \n",esp_err_to_name(ret));
+        //printf("\nError en softreset: %s \n",esp_err_to_name(ret));
     }
     else {
-         printf("\nSoftreset: OK\n\n");
+         //printf("\nSoftreset: OK\n\n");
     }
     
 }
@@ -555,7 +616,7 @@ void initialization(void) {
     uint8_t reg_init_ctrl=0x59, val_init_ctrl=0x00, val_init_ctrl2=0x01;
     uint8_t reg_init_data=0x5E; //, tmp;
 
-    printf("Inicializando ...\n");
+    //printf("Inicializando ...\n");
 
     bmi_write( &reg_pwr_conf_advpowersave, &val_pwr_conf_advpowersave,1);
 
@@ -570,10 +631,10 @@ void initialization(void) {
 
     ret=bmi_write( &reg_init_data, (uint8_t*)bmi270_config_file, config_size);
     if(ret != ESP_OK) {
-        printf("\nError cargando config_file\n");
+        //printf("\nError cargando config_file\n");
     }
     else {
-        printf("\nConfig_file cargado.\n");
+        //printf("\nConfig_file cargado.\n");
     }
 
     vTaskDelay(1000 /portTICK_PERIOD_MS);
@@ -586,7 +647,7 @@ void initialization(void) {
     //      printf("Init_ctrl = 1\n");
     // }
 
-    printf("\nAlgoritmo de inicializacion finalizado.\n\n");
+    //printf("\nAlgoritmo de inicializacion finalizado.\n\n");
     
     //vTaskDelay(1000 /portTICK_PERIOD_MS);
 }
@@ -599,12 +660,12 @@ void check_initialization(void) {
     vTaskDelay(1000 /portTICK_PERIOD_MS);
 
     bmi_read( &reg_internalstatus, &tmp,1);
-    printf("Init_status.0: %x \n",(tmp & 0b00001111));
+    //printf("Init_status.0: %x \n",(tmp & 0b00001111));
     if((tmp & 0b00001111)==1){
-        printf("Comprobacion Inicializacion: OK\n\n");
+        //printf("Comprobacion Inicializacion: OK\n\n");
     }
     else {
-        printf("Inicializacion fallida\n\n");
+        //printf("Inicializacion fallida\n\n");
         exit(EXIT_SUCCESS);
     }
 }
@@ -617,7 +678,7 @@ void internal_status(void)
 
     bmi_read( &reg_internalstatus, &tmp,1);
     //printf("Initial status: %x \n",(tmp & 0b00001111));
-    printf("Internal Status: %2X\n\n", tmp);
+    //printf("Internal Status: %2X\n\n", tmp);
 
 }
 
@@ -629,6 +690,16 @@ void lectura(void)
     int bytes_data8 = 12;
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
+
+    // ============ variables para comunicación UART ============
+
+    float acc_xf, acc_yf, acc_zf, acc_xf_g, acc_yf_g, acc_zf_g, gyr_xf, gyr_yf, gyr_zf;
+
+    float ms = 78.4532/3276878.4532/32768;
+    float g = 8.000/32768;
+    float rad = 34.90659/32768;
+
+    // ==========================================================
 
     while (1)
     {
@@ -654,16 +725,66 @@ void lectura(void)
             gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
 
 
-            printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
-            printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-            printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
-            printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+            //printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
+            //printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+            //printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
+            //printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
 
 
             
             if(ret != ESP_OK){
-                printf("Error lectura: %s \n",esp_err_to_name(ret));
+                //printf("Error lectura: %s \n",esp_err_to_name(ret));
             }
+
+            // ============ envío de data vía UART ============
+
+            // el envío se detiene al recibir un END
+            char dataEND[4];
+
+            // datos a enviar
+            acc_xf = acc_x * ms;
+            acc_yf = acc_y * ms;
+            acc_zf = acc_z * ms;
+
+            acc_xf_g = acc_x * g;
+            acc_yf_g = acc_y * g;
+            acc_zf_g = acc_z * g;
+
+            gyr_xf = gyr_x * rad;
+            gyr_yf = gyr_y * rad;
+            gyr_zf = gyr_z * rad;
+
+            // arreglo con los datos a enviar
+            float data[9];
+            data[0] = acc_xf;
+            data[1] = acc_yf;
+            data[2] = acc_zf;
+
+            data[3] = acc_xf_g;
+            data[4] = acc_yf_g;
+            data[5] = acc_zf_g;
+
+            data[6] = gyr_xf;
+            data[7] = gyr_yf;
+            data[8] = gyr_zf;
+            const char* dataToSend = (const char*)data;
+
+            // largo del mensaje a enviar
+            int len = sizeof(float)*9;
+
+            // enviar bytes
+            uart_write_bytes(UART_NUM, dataToSend, len);
+
+            // esperar respuesta
+            int rLen = serial_read(dataEND, 4);
+            if (rLen > 0) {
+                if (strcmp(dataEND, "END") == 0) {
+                    break;
+                }
+            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
+
+            // ================================================
 
         }
     }
@@ -684,7 +805,7 @@ void bmipowermode(void)
     else if(Fodr==800) val_acc_conf=0xAB;  
     else if(Fodr==1600) val_acc_conf=0xAC;  
     else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
+        //printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     };
 
@@ -703,6 +824,31 @@ void app_main(void) {
     check_initialization();
     bmipowermode();
     internal_status();    
-    printf("Comienza lectura\n\n");
+    //printf("Comienza lectura\n\n");
+    // ============ setup comunicación UART ============
+
+    uart_setup();
+
+    // esperar un BEGIN antes de comenzar el envío de datos
+    char dataBEGIN[6];
+
+    while (1) {
+        int rLen = serial_read(dataBEGIN, 6);
+        if (rLen > 0) {
+            if (strcmp(dataBEGIN, "BEGIN") == 0) {
+                uart_write_bytes(UART_NUM, "OK\0", 3);
+                break;
+            }
+        }
+    }
+
+    // =================================================
     lectura();
+    // ============ el envío de datos terminó ============
+
+    while (1) {
+        uart_write_bytes(UART_NUM, "OK\0", 3);
+    }
+
+    // ===================================================
 }
