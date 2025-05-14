@@ -1,0 +1,14 @@
+# C
+build/
+
+# espressidf
+skdconfig*
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ambiente virtual
+.env/
+
