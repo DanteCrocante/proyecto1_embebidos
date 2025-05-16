@@ -62,6 +62,12 @@ static void uart_setup() {
     }
 }
 
+// Read UART_num for input with timeout of 1 sec
+int serial_read(char *buffer, int size){
+    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
+    return len;
+}
+
 static void uart_begin() {
     // esperar un BEGIN antes de comenzar el envío de datos
     char dataBEGIN[6];
@@ -81,12 +87,6 @@ static void uart_end() {
     while (1) {
         uart_write_bytes(UART_NUM, "OK\0", 3);
     }
-}
-
-// Read UART_num for input with timeout of 1 sec
-int serial_read(char *buffer, int size){
-    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
-    return len;
 }
 
 //===============>> BMI270
