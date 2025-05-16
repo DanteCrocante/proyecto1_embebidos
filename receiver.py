@@ -49,7 +49,7 @@ def receive_data():
 
 def receive_rms():
     """ Funcion que recibe nueve floats (fffffffff) de la ESP32 
-    y los imprime en consola """
+    (que representan las rms) y los imprime en consola """
     data = receive_response()
 
     data = unpack(9*'f', data)
@@ -61,6 +61,11 @@ def receive_rms():
     msg = "\n".join([ms, g, rad])
     return msg + "\n"
 
+
+def send_continue_message():
+    """ Funcion para enviar un mensaje de continuacion a la ESP32 """
+    end_message = pack('4s', 'RES\0'.encode())
+    ser.write(end_message)
 
 def send_end_message():
     """ Funcion para enviar un mensaje de finalizacion a la ESP32 """
@@ -90,6 +95,7 @@ while True:
             counter += 1
             print(f"Lectura {counter}\n------------")
             print(message)
+            send_continue_message()
         finally:
             if counter == WINDOWS_SIZE:
                 print('Lecturas listas!\n')
@@ -105,7 +111,6 @@ while True:
         finally:
             if rms_ok:
                 print('RMS listas!\n')
-
 
 
 # Se envia el mensaje de termino de comunicacion

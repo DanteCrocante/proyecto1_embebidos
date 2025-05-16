@@ -754,23 +754,15 @@ void lectura(void) {
     // el envío se detiene al recibir un END
     char dataEND[4];
 
+    // esperar mensaje de continuación antes de seguir midiendo
+    char dataCON[4];
+
     // arreglo con los datos a enviar
     float data[9];
     const char* dataToSend = (const char*)data;
 
     // largo del mensaje a enviar (data)
     int len_data = sizeof(float)*9;
-
-    // Almacenar 5 peaks para cada unidad de medida, eje y valor medido
-    float acc_ms_x_peaks[5];
-    float acc_ms_y_peaks[5];
-    float acc_ms_z_peaks[5];
-    float acc_g_x_peaks[5];
-    float acc_g_y_peaks[5];
-    float acc_g_z_peaks[5];
-    float gyr_rad_x_peaks[5];
-    float gyr_rad_y_peaks[5];
-    float gyr_rad_z_peaks[5];
 
     // Almacenar las RMS
     float rms_acc_ms_x;
@@ -804,6 +796,17 @@ void lectura(void) {
     float fft_gyr_rad_x_im[WINDOWS_SIZE];
     float fft_gyr_rad_y_im[WINDOWS_SIZE];
     float fft_gyr_rad_z_im[WINDOWS_SIZE];
+
+    // Almacenar 5 peaks para cada unidad de medida, eje y valor medido
+    float acc_ms_x_peaks[5];
+    float acc_ms_y_peaks[5];
+    float acc_ms_z_peaks[5];
+    float acc_g_x_peaks[5];
+    float acc_g_y_peaks[5];
+    float acc_g_z_peaks[5];
+    float gyr_rad_x_peaks[5];
+    float gyr_rad_y_peaks[5];
+    float gyr_rad_z_peaks[5];
 
     // largo del mensaje a enviar (peaks)
     int len_peaks = sizeof(float)*5;
@@ -858,11 +861,14 @@ void lectura(void) {
                 uart_write_bytes(UART_NUM, dataToSend, len_data);
 
                 // esperar respuesta
-                int rLen = serial_read(dataEND, 4);
-                if (rLen > 0) {
-                    if (strcmp(dataEND, "END") == 0) {
-                        break;
-                    }
+                int rLen;
+                while (1) {
+                    rLen  = serial_read(dataCON, 4);
+                    if (rLen > 0) {
+                        if (strcmp(dataCON, "RES") == 0) {
+                            break;
+                        }
+                    } 
                 }
                 vTaskDelay(pdMS_TO_TICKS(1000));
             }
@@ -894,6 +900,9 @@ void lectura(void) {
         calcularFFT(gyr_rad_y, WINDOWS_SIZE, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
         calcularFFT(gyr_rad_z, WINDOWS_SIZE, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
 
+        // enviar bytes
+        // ...
+
         // encontrar peaks
         encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
         encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
@@ -904,6 +913,9 @@ void lectura(void) {
         encontrar_peaks(gyr_rad_x, gyr_rad_x_peaks);
         encontrar_peaks(gyr_rad_y, gyr_rad_y_peaks);
         encontrar_peaks(gyr_rad_z, gyr_rad_z_peaks);
+
+        // enviar peaks
+        // ...
     }
 
 
