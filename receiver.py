@@ -111,6 +111,7 @@ while True:
         finally:
             if rms_ok:
                 print('RMS listas!\n')
+                send_continue_message()
 
 
 # Se envia el mensaje de termino de comunicacion

@@ -764,17 +764,6 @@ void lectura(void) {
     // largo del mensaje a enviar (data)
     int len_data = sizeof(float)*9;
 
-    // Almacenar las RMS
-    float rms_acc_ms_x;
-    float rms_acc_ms_y;
-    float rms_acc_ms_z;
-    float rms_acc_g_x;
-    float rms_acc_g_y;
-    float rms_acc_g_z;
-    float rms_gyr_rad_x;
-    float rms_gyr_rad_y;
-    float rms_gyr_rad_z;
-
     // Alamcenar FFT (real)
     float fft_acc_ms_x_re[WINDOWS_SIZE];
     float fft_acc_ms_y_re[WINDOWS_SIZE];
@@ -810,6 +799,9 @@ void lectura(void) {
 
     // largo del mensaje a enviar (peaks)
     int len_peaks = sizeof(float)*5;
+
+    // largo de mensaje recibido desde python
+    int rLen;
 
     while (1) {
         
@@ -861,7 +853,6 @@ void lectura(void) {
                 uart_write_bytes(UART_NUM, dataToSend, len_data);
 
                 // esperar respuesta
-                int rLen;
                 while (1) {
                     rLen  = serial_read(dataCON, 4);
                     if (rLen > 0) {
@@ -887,6 +878,15 @@ void lectura(void) {
 
         // enviar bytes
         uart_write_bytes(UART_NUM, dataToSend, len_data);
+
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
         vTaskDelay(pdMS_TO_TICKS(1000));
 
         // Calcular FFT
