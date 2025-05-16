@@ -694,6 +694,28 @@ void internal_status(void)
 
 }
 
+/*Encontrar los 5 peaks maximos*/
+void encontrar_peaks(float *datos, float *peaks) {
+    int i, j;
+    float maximo;
+
+    for (i = 0; i < 5; i++) {
+        maximo = -1.0;
+        for (j = 0; j < WINDOWS_SIZE; j++) {
+            if (datos[j] > maximo) {
+                maximo = datos[j];
+            }
+        }
+        peaks[i] = maximo;
+        for (j = 0; j < WINDOWS_SIZE; j++) {
+            if (datos[j] == maximo) {
+                datos[j] = -1.0;
+                break;
+            }
+        }
+    }
+}
+
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
  * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
 void lectura(void) {
@@ -727,7 +749,21 @@ void lectura(void) {
 
     // largo del mensaje a enviar (data)
     int len_data = sizeof(float)*9;
-    
+
+    // Almacenar 5 peaks para cada unidad de medida, eje y valor medido
+    float acc_ms_x_peaks[5];
+    float acc_ms_y_peaks[5];
+    float acc_ms_z_peaks[5];
+    float acc_g_x_peaks[5];
+    float acc_g_y_peaks[5];
+    float acc_g_z_peaks[5];
+    float gyr_rad_x_peaks[5];
+    float gyr_rad_y_peaks[5];
+    float gyr_rad_z_peaks[5];
+
+    // largo del mensaje a enviar (peaks)
+    int len_peaks = sizeof(float)*5;
+
     while (1) {
         
         // medir hasta llenar ventanas
@@ -744,6 +780,11 @@ void lectura(void) {
                 gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
                 gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
                 gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
+
+                printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/3276878.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
+                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
+                printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
 
                 // Agregar cada medicion a su ventana respectiva
                 acc_ms_x[i] = (float)acc_x*ms;
@@ -770,18 +811,121 @@ void lectura(void) {
                 data[8] = gyr_rad_z[i];
 
                 // enviar bytes
-                uart_write_bytes(UART_NUM, dataToSend, len_data);
+                //uart_write_bytes(UART_NUM, dataToSend, len_data);
 
                 // esperar respuesta
-                int rLen = serial_read(dataEND, 4);
-                if (rLen > 0) {
-                    if (strcmp(dataEND, "END") == 0) {
-                        break;
-                    }
-                }
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                //int rLen = serial_read(dataEND, 4);
+                //if (rLen > 0) {
+                //    if (strcmp(dataEND, "END") == 0) {
+                //        break;
+                //    }
+                //}
+                //vTaskDelay(pdMS_TO_TICKS(1000));
             }
         }
+
+        // encontrar peaks
+        encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
+        encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
+        encontrar_peaks(acc_ms_z, acc_ms_z_peaks);
+        encontrar_peaks(acc_g_x, acc_g_x_peaks);
+        encontrar_peaks(acc_g_y, acc_g_y_peaks);
+        encontrar_peaks(acc_g_z, acc_g_z_peaks);
+        encontrar_peaks(gyr_rad_x, gyr_rad_x_peaks);
+        encontrar_peaks(gyr_rad_y, gyr_rad_y_peaks);
+        encontrar_peaks(gyr_rad_z, gyr_rad_z_peaks);
+
+        printf("Peaks acc_ms_x: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_x_peaks[0], acc_ms_x_peaks[1], acc_ms_x_peaks[2], acc_ms_x_peaks[3], acc_ms_x_peaks[4]);
+        printf("Peaks acc_ms_y: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_y_peaks[0], acc_ms_y_peaks[1], acc_ms_y_peaks[2], acc_ms_y_peaks[3], acc_ms_y_peaks[4]);
+        printf("Peaks acc_ms_z: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_z_peaks[0], acc_ms_z_peaks[1], acc_ms_z_peaks[2], acc_ms_z_peaks[3], acc_ms_z_peaks[4]);
+        printf("Peaks acc_g_x: %f g, %f g, %f g, %f g, %f g\n", acc_g_x_peaks[0], acc_g_x_peaks[1], acc_g_x_peaks[2], acc_g_x_peaks[3], acc_g_x_peaks[4]);
+        printf("Peaks acc_g_y: %f g, %f g, %f g, %f g, %f g\n", acc_g_y_peaks[0], acc_g_y_peaks[1], acc_g_y_peaks[2], acc_g_y_peaks[3], acc_g_y_peaks[4]);
+        printf("Peaks acc_g_z: %f g, %f g, %f g, %f g, %f g\n", acc_g_z_peaks[0], acc_g_z_peaks[1], acc_g_z_peaks[2], acc_g_z_peaks[3], acc_g_z_peaks[4]);
+
+        /*
+        uart_write_bytes(UART_NUM, (const char*)acc_ms_x_peaks, len_peaks);
+        // esperar respuesta
+        int rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)acc_ms_y_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)acc_ms_z_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)acc_g_x_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)acc_g_y_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)acc_g_z_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)gyr_rad_x_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)gyr_rad_y_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        uart_write_bytes(UART_NUM, (const char*)gyr_rad_z_peaks, len_peaks);
+        // esperar respuesta
+        rLen = serial_read(dataEND, 4);
+        if (rLen > 0) {
+            if (strcmp(dataEND, "END") == 0) {
+                break;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        */
+
     }
 
 
@@ -901,8 +1045,8 @@ void app_main(void) {
     check_initialization();
     bmipowermode(0);
     internal_status();    
-    uart_setup();
-    uart_begin();
+    //uart_setup();
+    //uart_begin();
     lectura();
-    uart_end();
+    //uart_end();
 }
