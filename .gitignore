@@ -12,3 +12,6 @@ __pycache__/
 # ambiente virtual
 .env/
 
+# IDE
+.vscode/
+
