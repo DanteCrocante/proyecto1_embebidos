@@ -853,18 +853,6 @@ void lectura(void) {
                 data[6] = gyr_rad_x[i];
                 data[7] = gyr_rad_y[i];
                 data[8] = gyr_rad_z[i];
-
-                // enviar bytes
-                //uart_write_bytes(UART_NUM, dataToSend, len_data);
-
-                // esperar respuesta
-                //int rLen = serial_read(dataEND, 4);
-                //if (rLen > 0) {
-                //    if (strcmp(dataEND, "END") == 0) {
-                //        break;
-                //    }
-                //}
-                //vTaskDelay(pdMS_TO_TICKS(1000));
             }
         }
 
@@ -879,16 +867,6 @@ void lectura(void) {
         rms_gyr_rad_y = RMS(gyr_rad_y, WINDOWS_SIZE);
         rms_gyr_rad_z = RMS(gyr_rad_z, WINDOWS_SIZE);
 
-        printf("RMS acc_ms_x: %f m/s2\n", rms_acc_ms_x);
-        printf("RMS acc_ms_y: %f m/s2\n", rms_acc_ms_y);
-        printf("RMS acc_ms_z: %f m/s2\n", rms_acc_ms_z);
-        printf("RMS acc_g_x: %f g\n", rms_acc_g_x);
-        printf("RMS acc_g_y: %f g\n", rms_acc_g_y);
-        printf("RMS acc_g_z: %f g\n", rms_acc_g_z);
-        printf("RMS gyr_rad_x: %f rad/s\n", rms_gyr_rad_x);
-        printf("RMS gyr_rad_y: %f rad/s\n", rms_gyr_rad_y);
-        printf("RMS gyr_rad_z: %f rad/s\n", rms_gyr_rad_z);
-
         // Calcular FFT
         calcularFFT(acc_ms_x, WINDOWS_SIZE, fft_acc_ms_x_re, fft_acc_ms_x_im);
         calcularFFT(acc_ms_y, WINDOWS_SIZE, fft_acc_ms_y_re, fft_acc_ms_y_im);
@@ -900,17 +878,6 @@ void lectura(void) {
         calcularFFT(gyr_rad_y, WINDOWS_SIZE, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
         calcularFFT(gyr_rad_z, WINDOWS_SIZE, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
 
-        printf("FFT acc_ms_x_re: %f m/s2, FFT acc_ms_x_im: %f m/s2\n", fft_acc_ms_x_re[0], fft_acc_ms_x_im[0]);
-        printf("FFT acc_ms_y_re: %f m/s2, FFT acc_ms_y_im: %f m/s2\n", fft_acc_ms_y_re[0], fft_acc_ms_y_im[0]);
-        printf("FFT acc_ms_z_re: %f m/s2, FFT acc_ms_z_im: %f m/s2\n", fft_acc_ms_z_re[0], fft_acc_ms_z_im[0]);
-        printf("FFT acc_g_x_re: %f g, FFT acc_g_x_im: %f g\n", fft_acc_g_x_re[0], fft_acc_g_x_im[0]);
-        printf("FFT acc_g_y_re: %f g, FFT acc_g_y_im: %f g\n", fft_acc_g_y_re[0], fft_acc_g_y_im[0]);
-        printf("FFT acc_g_z_re: %f g, FFT acc_g_z_im: %f g\n", fft_acc_g_z_re[0], fft_acc_g_z_im[0]);
-        printf("FFT gyr_rad_x_re: %f g, FFT gyr_rad_x_im: %f g\n", fft_gyr_rad_x_re[0], fft_gyr_rad_x_im[0]);
-        printf("FFT gyr_rad_y_re: %f g, FFT gyr_rad_y_im: %f g\n", fft_gyr_rad_y_re[0], fft_gyr_rad_y_im[0]);
-        printf("FFT gyr_rad_z_re: %f g, FFT gyr_rad_z_im: %f g\n", fft_gyr_rad_z_re[0], fft_gyr_rad_z_im[0]);
-
-
         // encontrar peaks
         encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
         encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
@@ -921,101 +888,6 @@ void lectura(void) {
         encontrar_peaks(gyr_rad_x, gyr_rad_x_peaks);
         encontrar_peaks(gyr_rad_y, gyr_rad_y_peaks);
         encontrar_peaks(gyr_rad_z, gyr_rad_z_peaks);
-
-        printf("Peaks acc_ms_x: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_x_peaks[0], acc_ms_x_peaks[1], acc_ms_x_peaks[2], acc_ms_x_peaks[3], acc_ms_x_peaks[4]);
-        printf("Peaks acc_ms_y: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_y_peaks[0], acc_ms_y_peaks[1], acc_ms_y_peaks[2], acc_ms_y_peaks[3], acc_ms_y_peaks[4]);
-        printf("Peaks acc_ms_z: %f m/s2, %f m/s2, %f m/s2, %f m/s2,%f m/s2\n", acc_ms_z_peaks[0], acc_ms_z_peaks[1], acc_ms_z_peaks[2], acc_ms_z_peaks[3], acc_ms_z_peaks[4]);
-        printf("Peaks acc_g_x: %f g, %f g, %f g, %f g, %f g\n", acc_g_x_peaks[0], acc_g_x_peaks[1], acc_g_x_peaks[2], acc_g_x_peaks[3], acc_g_x_peaks[4]);
-        printf("Peaks acc_g_y: %f g, %f g, %f g, %f g, %f g\n", acc_g_y_peaks[0], acc_g_y_peaks[1], acc_g_y_peaks[2], acc_g_y_peaks[3], acc_g_y_peaks[4]);
-        printf("Peaks acc_g_z: %f g, %f g, %f g, %f g, %f g\n", acc_g_z_peaks[0], acc_g_z_peaks[1], acc_g_z_peaks[2], acc_g_z_peaks[3], acc_g_z_peaks[4]);
-        printf("Peaks gyr_rad_x: %f rad/s, %f rad/s, %f rad/s, %f rad/s, %f g\n", gyr_rad_x_peaks[0], gyr_rad_x_peaks[1], gyr_rad_x_peaks[2], gyr_rad_x_peaks[3], gyr_rad_x_peaks[4]);
-        printf("Peaks gyr_rad_y: %f rad/s, %f rad/s, %f rad/s, %f rad/s, %f g\n", gyr_rad_y_peaks[0], gyr_rad_y_peaks[1], gyr_rad_y_peaks[2], gyr_rad_y_peaks[3], gyr_rad_y_peaks[4]);
-        printf("Peaks gyr_rad_z: %f rad/s, %f rad/s, %f rad/s, %f rad/s, %f g\n", gyr_rad_z_peaks[0], gyr_rad_z_peaks[1], gyr_rad_z_peaks[2], gyr_rad_z_peaks[3], gyr_rad_z_peaks[4]);
-
-        /*
-        uart_write_bytes(UART_NUM, (const char*)acc_ms_x_peaks, len_peaks);
-        // esperar respuesta
-        int rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)acc_ms_y_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)acc_ms_z_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)acc_g_x_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)acc_g_y_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)acc_g_z_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)gyr_rad_x_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)gyr_rad_y_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        uart_write_bytes(UART_NUM, (const char*)gyr_rad_z_peaks, len_peaks);
-        // esperar respuesta
-        rLen = serial_read(dataEND, 4);
-        if (rLen > 0) {
-            if (strcmp(dataEND, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        */
-
     }
 
 
@@ -1135,8 +1007,8 @@ void app_main(void) {
     check_initialization();
     bmipowermode(0);
     internal_status();    
-    //uart_setup();
-    //uart_begin();
+    uart_setup();
+    uart_begin();
     lectura();
-    //uart_end();
+    uart_end();
 }
