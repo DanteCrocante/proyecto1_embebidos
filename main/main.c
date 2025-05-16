@@ -6,16 +6,11 @@
 #include "math.h"
 #include "esp_task.h"
 #include <string.h>
-
-// ============ includes para comunicación UART ============
-
 #include <stdlib.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/uart.h"
-
-// =========================================================
 
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
@@ -28,19 +23,14 @@
 #define ACK_VAL					        0x0
 #define NACK_VAL				        0x1
 #define Fodr                            800
+#define BUF_SIZE                        (128)
+#define TXD_PIN                         1
+#define RXD_PIN                         3
+#define UART_NUM                        UART_NUM_0
+#define BAUD_RATE                       115200
+#define REDIRECT_LOGS                   1 
 
-// ============ defines para comunicación UART ============
-
-#define BUF_SIZE (128)
-#define TXD_PIN 1
-#define RXD_PIN 3
-#define UART_NUM UART_NUM_0
-#define BAUD_RATE 115200
-#define REDIRECT_LOGS 1 
-
-// ========================================================
-
-// ============ funciones para comunicación UART ============
+//===============>> UART
 
 // Function for sending things to UART1
 static int uart1_printf(const char *str, va_list ap) {
@@ -72,13 +62,34 @@ static void uart_setup() {
     }
 }
 
+static void uart_begin() {
+    // esperar un BEGIN antes de comenzar el envío de datos
+    char dataBEGIN[6];
+
+    while (1) {
+        int rLen = serial_read(dataBEGIN, 6);
+        if (rLen > 0) {
+            if (strcmp(dataBEGIN, "BEGIN") == 0) {
+                uart_write_bytes(UART_NUM, "OK\0", 3);
+                break;
+            }
+        }
+    }
+}
+
+static void uart_end() {
+    while (1) {
+        uart_write_bytes(UART_NUM, "OK\0", 3);
+    }
+}
+
 // Read UART_num for input with timeout of 1 sec
 int serial_read(char *buffer, int size){
     int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
     return len;
 }
 
-// ==========================================================
+//===============>> BMI270
 
 esp_err_t ret = ESP_OK;
 esp_err_t ret2 = ESP_OK;
@@ -905,31 +916,8 @@ void app_main(void) {
     check_initialization();
     bmipowermode(0);
     internal_status();    
-    //printf("Comienza lectura\n\n");
-    // ============ setup comunicación UART ============
-
     uart_setup();
-
-    // esperar un BEGIN antes de comenzar el envío de datos
-    char dataBEGIN[6];
-
-    while (1) {
-        int rLen = serial_read(dataBEGIN, 6);
-        if (rLen > 0) {
-            if (strcmp(dataBEGIN, "BEGIN") == 0) {
-                uart_write_bytes(UART_NUM, "OK\0", 3);
-                break;
-            }
-        }
-    }
-
-    // =================================================
+    uart_begin();
     lectura();
-    // ============ el envío de datos terminó ============
-
-    while (1) {
-        uart_write_bytes(UART_NUM, "OK\0", 3);
-    }
-
-    // ===================================================
+    uart_end();
 }
