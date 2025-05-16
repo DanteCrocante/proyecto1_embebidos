@@ -12,6 +12,7 @@
 #include "freertos/task.h"
 #include "driver/uart.h"
 #include "math.h"
+#include "FFT.c"
 
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
@@ -782,6 +783,28 @@ void lectura(void) {
     float rms_gyr_rad_y;
     float rms_gyr_rad_z;
 
+    // Alamcenar FFT (real)
+    float fft_acc_ms_x_re[WINDOWS_SIZE];
+    float fft_acc_ms_y_re[WINDOWS_SIZE];
+    float fft_acc_ms_z_re[WINDOWS_SIZE];
+    float fft_acc_g_x_re[WINDOWS_SIZE];
+    float fft_acc_g_y_re[WINDOWS_SIZE];
+    float fft_acc_g_z_re[WINDOWS_SIZE];
+    float fft_gyr_rad_x_re[WINDOWS_SIZE];
+    float fft_gyr_rad_y_re[WINDOWS_SIZE];
+    float fft_gyr_rad_z_re[WINDOWS_SIZE];
+
+    // Alamcenar FFT (imaginario)
+    float fft_acc_ms_x_im[WINDOWS_SIZE];
+    float fft_acc_ms_y_im[WINDOWS_SIZE];
+    float fft_acc_ms_z_im[WINDOWS_SIZE];
+    float fft_acc_g_x_im[WINDOWS_SIZE];
+    float fft_acc_g_y_im[WINDOWS_SIZE];
+    float fft_acc_g_z_im[WINDOWS_SIZE];
+    float fft_gyr_rad_x_im[WINDOWS_SIZE];
+    float fft_gyr_rad_y_im[WINDOWS_SIZE];
+    float fft_gyr_rad_z_im[WINDOWS_SIZE];
+
     // largo del mensaje a enviar (peaks)
     int len_peaks = sizeof(float)*5;
 
@@ -865,6 +888,27 @@ void lectura(void) {
         printf("RMS gyr_rad_x: %f rad/s\n", rms_gyr_rad_x);
         printf("RMS gyr_rad_y: %f rad/s\n", rms_gyr_rad_y);
         printf("RMS gyr_rad_z: %f rad/s\n", rms_gyr_rad_z);
+
+        // Calcular FFT
+        calcularFFT(acc_ms_x, WINDOWS_SIZE, fft_acc_ms_x_re, fft_acc_ms_x_im);
+        calcularFFT(acc_ms_y, WINDOWS_SIZE, fft_acc_ms_y_re, fft_acc_ms_y_im);
+        calcularFFT(acc_ms_z, WINDOWS_SIZE, fft_acc_ms_z_re, fft_acc_ms_z_im);
+        calcularFFT(acc_g_x, WINDOWS_SIZE, fft_acc_g_x_re, fft_acc_g_x_im);
+        calcularFFT(acc_g_y, WINDOWS_SIZE, fft_acc_g_y_re, fft_acc_g_y_im);
+        calcularFFT(acc_g_z, WINDOWS_SIZE, fft_acc_g_z_re, fft_acc_g_z_im);
+        calcularFFT(gyr_rad_x, WINDOWS_SIZE, fft_gyr_rad_x_re, fft_gyr_rad_x_im);
+        calcularFFT(gyr_rad_y, WINDOWS_SIZE, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
+        calcularFFT(gyr_rad_z, WINDOWS_SIZE, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
+
+        printf("FFT acc_ms_x_re: %f m/s2, FFT acc_ms_x_im: %f m/s2\n", fft_acc_ms_x_re[0], fft_acc_ms_x_im[0]);
+        printf("FFT acc_ms_y_re: %f m/s2, FFT acc_ms_y_im: %f m/s2\n", fft_acc_ms_y_re[0], fft_acc_ms_y_im[0]);
+        printf("FFT acc_ms_z_re: %f m/s2, FFT acc_ms_z_im: %f m/s2\n", fft_acc_ms_z_re[0], fft_acc_ms_z_im[0]);
+        printf("FFT acc_g_x_re: %f g, FFT acc_g_x_im: %f g\n", fft_acc_g_x_re[0], fft_acc_g_x_im[0]);
+        printf("FFT acc_g_y_re: %f g, FFT acc_g_y_im: %f g\n", fft_acc_g_y_re[0], fft_acc_g_y_im[0]);
+        printf("FFT acc_g_z_re: %f g, FFT acc_g_z_im: %f g\n", fft_acc_g_z_re[0], fft_acc_g_z_im[0]);
+        printf("FFT gyr_rad_x_re: %f g, FFT gyr_rad_x_im: %f g\n", fft_gyr_rad_x_re[0], fft_gyr_rad_x_im[0]);
+        printf("FFT gyr_rad_y_re: %f g, FFT gyr_rad_y_im: %f g\n", fft_gyr_rad_y_re[0], fft_gyr_rad_y_im[0]);
+        printf("FFT gyr_rad_z_re: %f g, FFT gyr_rad_z_im: %f g\n", fft_gyr_rad_z_re[0], fft_gyr_rad_z_im[0]);
 
 
         // encontrar peaks
