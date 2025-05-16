@@ -25,7 +25,8 @@ def receive_data():
 
     print("llegó hasta acá1")
 
-    data = unpack("fffffffff", data)
+    fstring = 9 * "f"
+    data = unpack(fstring, data)
 
     print(f'Received: {data}')
     return data
@@ -37,11 +38,11 @@ def send_end_message():
 
 # Se envia el mensaje de inicio de comunicacion
 message = pack('6s','BEGIN\0'.encode())
-print("empieza correctamente")
 send_message(message)
 # Espera un tiempo antes de recibir OK
 time.sleep(2)
 receive_response()
+print("empieza correctamente")
 
 # Se lee data por la conexion serial
 counter = 0
@@ -58,7 +59,7 @@ while True:
             counter += 1
             print(counter)
         finally:
-            if counter == 10 or err_counter == 10:
+            if counter == 20 or err_counter == 5:
                 print('Lecturas listas!')
                 break
 

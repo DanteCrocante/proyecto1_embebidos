@@ -29,6 +29,7 @@
 #define UART_NUM                        UART_NUM_0
 #define BAUD_RATE                       115200
 #define REDIRECT_LOGS                   1 
+#define WINDOWS_SIZE                    20
 
 //===============>> UART
 
@@ -695,110 +696,92 @@ void internal_status(void)
 
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
  * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
-void lectura(void)
-{
+void lectura(void) {
     uint8_t reg_intstatus=0x03, tmp;
     int bytes_data8 = 12;
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
 
-    // ============ variables para comunicación UART ============
-
-    float acc_xf, acc_yf, acc_zf, acc_xf_g, acc_yf_g, acc_zf_g, gyr_xf, gyr_yf, gyr_zf;
-
+    // Constantes de conversión
     float ms = 78.4532/3276878.4532/32768;
     float g = 8.000/32768;
     float rad = 34.90659/32768;
 
-    // ==========================================================
+    // Ventanas para cada unidad de medida, eje y valor medido
+    float acc_ms_x[WINDOWS_SIZE];
+    float acc_ms_y[WINDOWS_SIZE];
+    float acc_ms_z[WINDOWS_SIZE];
+    float acc_g_x[WINDOWS_SIZE];
+    float acc_g_y[WINDOWS_SIZE];
+    float acc_g_z[WINDOWS_SIZE];
+    float gyr_rad_x[WINDOWS_SIZE];
+    float gyr_rad_y[WINDOWS_SIZE];
+    float gyr_rad_z[WINDOWS_SIZE];
 
-    while (1)
-    {
-        bmi_read( &reg_intstatus, &tmp,1);
-        // printf("Init_status.0: %x - mask: %x \n", tmp, (tmp & 0b10000000));
-        //ESP_LOGI("leturabmi", "acc_data_ready: %x - mask(80): %x \n", tmp, (tmp & 0b10000000));
+    while (1) {
         
-        if ((tmp & 0b10000000) == 0x80)
-        { 
-            ret= bmi_read( &reg_data, (uint8_t*) data_data8, bytes_data8);
+        // medir hasta llenar ventanas
+        for (int i=0; i<WINDOWS_SIZE; i++) {
+            bmi_read(&reg_intstatus, &tmp, 1);
 
-            // for (i=0; i<bytes_data8; i++)
-            // {
-            //     printf("Lectura RAW: %2X \n",data_data8[i]);
-            // }
-            
-            acc_x = ((uint16_t) data_data8[1] << 8) | (uint16_t) data_data8[0];
-            acc_y = ((uint16_t) data_data8[3] << 8) | (uint16_t) data_data8[2];
-            acc_z = ((uint16_t) data_data8[5] << 8) | (uint16_t) data_data8[4];
+            if ((tmp & 0b10000000) == 0x80) {
+                ret = bmi_read(&reg_data, (uint8_t*) data_data8, bytes_data8);
 
-            gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
-            gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
-            gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
+                // Obtener mediciones RAW
+                acc_x = ((uint16_t) data_data8[1] << 8) | (uint16_t) data_data8[0];
+                acc_y = ((uint16_t) data_data8[3] << 8) | (uint16_t) data_data8[2];
+                acc_z = ((uint16_t) data_data8[5] << 8) | (uint16_t) data_data8[4];
+                gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
+                gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
+                gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
 
+                // Agregar cada medicion a su ventana respectiva
+                acc_ms_x[i] = (float)acc_x*ms;
+                acc_ms_y[i] = (float)acc_y*ms;
+                acc_ms_z[i] = (float)acc_z*ms;
+                acc_g_x[i] = (float)acc_x*g;
+                acc_g_y[i] = (float)acc_y*g;
+                acc_g_z[i] = (float)acc_z*g;
+                gyr_rad_x[i] = (float)gyr_x*rad;
+                gyr_rad_y[i] = (float)gyr_y*rad;
+                gyr_rad_z[i] = (float)gyr_z*rad;
 
-            //printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
-            //printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-            //printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
-            //printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
+                // ===============>> enviar data vía UART
 
+                // el envío se detiene al recibir un END
+                char dataEND[4];
 
-            
-            if(ret != ESP_OK){
-                //printf("Error lectura: %s \n",esp_err_to_name(ret));
-            }
+                // arreglo con los datos a enviar
+                float data[9];
+                data[0] = acc_ms_x[i];
+                data[1] = acc_ms_y[i];
+                data[2] = acc_ms_z[i];
+                data[3] = acc_g_x[i];
+                data[4] = acc_g_y[i];
+                data[5] = acc_g_z[i];
+                data[6] = gyr_rad_x[i];
+                data[7] = gyr_rad_y[i];
+                data[8] = gyr_rad_z[i];
+                const char* dataToSend = (const char*)data;
 
-            // ============ envío de data vía UART ============
+                // largo del mensaje a enviar
+                int len = sizeof(float)*9;
 
-            // el envío se detiene al recibir un END
-            char dataEND[4];
+                // enviar bytes
+                uart_write_bytes(UART_NUM, dataToSend, len);
 
-            // datos a enviar
-            acc_xf = acc_x * ms;
-            acc_yf = acc_y * ms;
-            acc_zf = acc_z * ms;
-
-            acc_xf_g = acc_x * g;
-            acc_yf_g = acc_y * g;
-            acc_zf_g = acc_z * g;
-
-            gyr_xf = gyr_x * rad;
-            gyr_yf = gyr_y * rad;
-            gyr_zf = gyr_z * rad;
-
-            // arreglo con los datos a enviar
-            float data[9];
-            data[0] = acc_xf;
-            data[1] = acc_yf;
-            data[2] = acc_zf;
-
-            data[3] = acc_xf_g;
-            data[4] = acc_yf_g;
-            data[5] = acc_zf_g;
-
-            data[6] = gyr_xf;
-            data[7] = gyr_yf;
-            data[8] = gyr_zf;
-            const char* dataToSend = (const char*)data;
-
-            // largo del mensaje a enviar
-            int len = sizeof(float)*9;
-
-            // enviar bytes
-            uart_write_bytes(UART_NUM, dataToSend, len);
-
-            // esperar respuesta
-            int rLen = serial_read(dataEND, 4);
-            if (rLen > 0) {
-                if (strcmp(dataEND, "END") == 0) {
-                    break;
+                // esperar respuesta
+                int rLen = serial_read(dataEND, 4);
+                if (rLen > 0) {
+                    if (strcmp(dataEND, "END") == 0) {
+                        break;
+                    }
                 }
+                vTaskDelay(pdMS_TO_TICKS(1000));
             }
-            vTaskDelay(pdMS_TO_TICKS(1000));
-
-            // ================================================
-
         }
     }
+
 
 }
 
