@@ -853,6 +853,18 @@ void lectura(void) {
                 data[6] = gyr_rad_x[i];
                 data[7] = gyr_rad_y[i];
                 data[8] = gyr_rad_z[i];
+
+                // enviar bytes
+                uart_write_bytes(UART_NUM, dataToSend, len_data);
+
+                // esperar respuesta
+                int rLen = serial_read(dataEND, 4);
+                if (rLen > 0) {
+                    if (strcmp(dataEND, "END") == 0) {
+                        break;
+                    }
+                }
+                vTaskDelay(pdMS_TO_TICKS(1000));
             }
         }
 

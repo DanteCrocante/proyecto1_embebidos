@@ -23,13 +23,14 @@ def receive_data():
     y los imprime en consola """
     data = receive_response()
 
-    print("llegó hasta acá1")
+    data = unpack(9*'f', data)
 
-    fstring = 9 * "f"
-    data = unpack(fstring, data)
+    ms = f"acc[m/s²]: x={data[0]} y={data[1]} z={data[2]}"
+    g = f"acc[g]: x={data[3]} y={data[4]} z={data[5]}"
+    rad = f"gyr[rad/s]: x={data[6]} y={data[7]} z={data[8]}"
 
-    print(f'Received: {data}')
-    return data
+    msg = "\n".join([ms, g, rad])
+    return msg + "\n"
 
 def send_end_message():
     """ Funcion para enviar un mensaje de finalizacion a la ESP32 """
@@ -52,14 +53,14 @@ while True:
         try:
             message = receive_data()
         except:
-            err_counter += 1
-            print('Error en leer mensaje')
+            #print(f'Error en leer mensaje {err_counter}')
             continue
         else: 
             counter += 1
-            print(counter)
+            print(f"Lectura {counter}\n-----------")
+            print(message)
         finally:
-            if counter == 20 or err_counter == 5:
+            if counter == 20:
                 print('Lecturas listas!')
                 break
 
