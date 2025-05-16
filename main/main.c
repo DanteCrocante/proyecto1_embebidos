@@ -718,6 +718,16 @@ void lectura(void) {
     float gyr_rad_y[WINDOWS_SIZE];
     float gyr_rad_z[WINDOWS_SIZE];
 
+    // el envío se detiene al recibir un END
+    char dataEND[4];
+
+    // arreglo con los datos a enviar
+    float data[9];
+    const char* dataToSend = (const char*)data;
+
+    // largo del mensaje a enviar (data)
+    int len_data = sizeof(float)*9;
+    
     while (1) {
         
         // medir hasta llenar ventanas
@@ -748,11 +758,7 @@ void lectura(void) {
 
                 // ===============>> enviar data vía UART
 
-                // el envío se detiene al recibir un END
-                char dataEND[4];
-
                 // arreglo con los datos a enviar
-                float data[9];
                 data[0] = acc_ms_x[i];
                 data[1] = acc_ms_y[i];
                 data[2] = acc_ms_z[i];
@@ -762,13 +768,9 @@ void lectura(void) {
                 data[6] = gyr_rad_x[i];
                 data[7] = gyr_rad_y[i];
                 data[8] = gyr_rad_z[i];
-                const char* dataToSend = (const char*)data;
-
-                // largo del mensaje a enviar
-                int len = sizeof(float)*9;
 
                 // enviar bytes
-                uart_write_bytes(UART_NUM, dataToSend, len);
+                uart_write_bytes(UART_NUM, dataToSend, len_data);
 
                 // esperar respuesta
                 int rLen = serial_read(dataEND, 4);
