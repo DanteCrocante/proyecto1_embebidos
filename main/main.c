@@ -869,15 +869,19 @@ void lectura(void) {
         }
 
         // Calcular RMS
-        rms_acc_ms_x = RMS(acc_ms_x, WINDOWS_SIZE);
-        rms_acc_ms_y = RMS(acc_ms_y, WINDOWS_SIZE);
-        rms_acc_ms_z = RMS(acc_ms_z, WINDOWS_SIZE);
-        rms_acc_g_x = RMS(acc_g_x, WINDOWS_SIZE);
-        rms_acc_g_y = RMS(acc_g_y, WINDOWS_SIZE);
-        rms_acc_g_z = RMS(acc_g_z, WINDOWS_SIZE);
-        rms_gyr_rad_x = RMS(gyr_rad_x, WINDOWS_SIZE);
-        rms_gyr_rad_y = RMS(gyr_rad_y, WINDOWS_SIZE);
-        rms_gyr_rad_z = RMS(gyr_rad_z, WINDOWS_SIZE);
+        data[0] = RMS(acc_ms_x, WINDOWS_SIZE);
+        data[1] = RMS(acc_ms_y, WINDOWS_SIZE);
+        data[2] = RMS(acc_ms_z, WINDOWS_SIZE);
+        data[3] = RMS(acc_g_x, WINDOWS_SIZE);
+        data[4] = RMS(acc_g_y, WINDOWS_SIZE);
+        data[5] = RMS(acc_g_z, WINDOWS_SIZE);
+        data[6] = RMS(gyr_rad_x, WINDOWS_SIZE);
+        data[7] = RMS(gyr_rad_y, WINDOWS_SIZE);
+        data[8] = RMS(gyr_rad_z, WINDOWS_SIZE);
+
+        // enviar bytes
+        uart_write_bytes(UART_NUM, dataToSend, len_data);
+        vTaskDelay(pdMS_TO_TICKS(1000));
 
         // Calcular FFT
         calcularFFT(acc_ms_x, WINDOWS_SIZE, fft_acc_ms_x_re, fft_acc_ms_x_im);
