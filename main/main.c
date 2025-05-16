@@ -11,6 +11,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/uart.h"
+#include "math.h"
 
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
@@ -716,6 +717,15 @@ void encontrar_peaks(float *datos, float *peaks) {
     }
 }
 
+/* Calcula el RMS de un arreglo de datos (floats). */
+float RMS(float *datos, int size) {
+    float suma = 0.0;
+    for (int i = 0; i < size; i++) {
+        suma += datos[i] * datos[i];
+    }
+    return sqrtf(suma / size);
+}
+
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
  * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
 void lectura(void) {
@@ -760,6 +770,17 @@ void lectura(void) {
     float gyr_rad_x_peaks[5];
     float gyr_rad_y_peaks[5];
     float gyr_rad_z_peaks[5];
+
+    // Almacenar las RMS
+    float rms_acc_ms_x;
+    float rms_acc_ms_y;
+    float rms_acc_ms_z;
+    float rms_acc_g_x;
+    float rms_acc_g_y;
+    float rms_acc_g_z;
+    float rms_gyr_rad_x;
+    float rms_gyr_rad_y;
+    float rms_gyr_rad_z;
 
     // largo del mensaje a enviar (peaks)
     int len_peaks = sizeof(float)*5;
@@ -824,6 +845,28 @@ void lectura(void) {
             }
         }
 
+        // Calcular RMS
+        rms_acc_ms_x = RMS(acc_ms_x, WINDOWS_SIZE);
+        rms_acc_ms_y = RMS(acc_ms_y, WINDOWS_SIZE);
+        rms_acc_ms_z = RMS(acc_ms_z, WINDOWS_SIZE);
+        rms_acc_g_x = RMS(acc_g_x, WINDOWS_SIZE);
+        rms_acc_g_y = RMS(acc_g_y, WINDOWS_SIZE);
+        rms_acc_g_z = RMS(acc_g_z, WINDOWS_SIZE);
+        rms_gyr_rad_x = RMS(gyr_rad_x, WINDOWS_SIZE);
+        rms_gyr_rad_y = RMS(gyr_rad_y, WINDOWS_SIZE);
+        rms_gyr_rad_z = RMS(gyr_rad_z, WINDOWS_SIZE);
+
+        printf("RMS acc_ms_x: %f m/s2\n", rms_acc_ms_x);
+        printf("RMS acc_ms_y: %f m/s2\n", rms_acc_ms_y);
+        printf("RMS acc_ms_z: %f m/s2\n", rms_acc_ms_z);
+        printf("RMS acc_g_x: %f g\n", rms_acc_g_x);
+        printf("RMS acc_g_y: %f g\n", rms_acc_g_y);
+        printf("RMS acc_g_z: %f g\n", rms_acc_g_z);
+        printf("RMS gyr_rad_x: %f rad/s\n", rms_gyr_rad_x);
+        printf("RMS gyr_rad_y: %f rad/s\n", rms_gyr_rad_y);
+        printf("RMS gyr_rad_z: %f rad/s\n", rms_gyr_rad_z);
+
+
         // encontrar peaks
         encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
         encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
@@ -841,6 +884,9 @@ void lectura(void) {
         printf("Peaks acc_g_x: %f g, %f g, %f g, %f g, %f g\n", acc_g_x_peaks[0], acc_g_x_peaks[1], acc_g_x_peaks[2], acc_g_x_peaks[3], acc_g_x_peaks[4]);
         printf("Peaks acc_g_y: %f g, %f g, %f g, %f g, %f g\n", acc_g_y_peaks[0], acc_g_y_peaks[1], acc_g_y_peaks[2], acc_g_y_peaks[3], acc_g_y_peaks[4]);
         printf("Peaks acc_g_z: %f g, %f g, %f g, %f g, %f g\n", acc_g_z_peaks[0], acc_g_z_peaks[1], acc_g_z_peaks[2], acc_g_z_peaks[3], acc_g_z_peaks[4]);
+        printf("Peaks gyr_rad_x: %f rad/s, %f rad/s, %f rad/s, %f rad/s, %f g\n", gyr_rad_x_peaks[0], gyr_rad_x_peaks[1], gyr_rad_x_peaks[2], gyr_rad_x_peaks[3], gyr_rad_x_peaks[4]);
+        printf("Peaks gyr_rad_y: %f rad/s, %f rad/s, %f rad/s, %f rad/s, %f g\n", gyr_rad_y_peaks[0], gyr_rad_y_peaks[1], gyr_rad_y_peaks[2], gyr_rad_y_peaks[3], gyr_rad_y_peaks[4]);
+        printf("Peaks gyr_rad_z: %f rad/s, %f rad/s, %f rad/s, %f rad/s, %f g\n", gyr_rad_z_peaks[0], gyr_rad_z_peaks[1], gyr_rad_z_peaks[2], gyr_rad_z_peaks[3], gyr_rad_z_peaks[4]);
 
         /*
         uart_write_bytes(UART_NUM, (const char*)acc_ms_x_peaks, len_peaks);
