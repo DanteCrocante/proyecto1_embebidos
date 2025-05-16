@@ -807,7 +807,7 @@ void normal(void) {
     } else if (Fodr == 1600) {
         val_acc_conf = 0xAC; val_gyr_conf = 0xAC;
     } else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n")
+        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -835,7 +835,7 @@ void performance(void) {
     } else if (Fodr == 1600) {
         val_acc_conf = 0xAC; val_gyr_conf = 0xAC;
     } else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n")
+        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -862,7 +862,7 @@ void low(void) {
     } else if (Fodr == 1600) {
         val_acc_conf = 0x2C;
     } else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n")
+        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -903,7 +903,7 @@ void app_main(void) {
     chipid();
     initialization();
     check_initialization();
-    bmipowermode();
+    bmipowermode(0);
     internal_status();    
     //printf("Comienza lectura\n\n");
     // ============ setup comunicación UART ============
