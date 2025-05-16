@@ -900,8 +900,8 @@ void lectura(void) {
         calcularFFT(gyr_rad_y, WINDOWS_SIZE, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
         calcularFFT(gyr_rad_z, WINDOWS_SIZE, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
 
+        // enviar fft
         // enviar bytes
-        // ...
 
         // encontrar peaks
         encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
@@ -914,8 +914,106 @@ void lectura(void) {
         encontrar_peaks(gyr_rad_y, gyr_rad_y_peaks);
         encontrar_peaks(gyr_rad_z, gyr_rad_z_peaks);
 
+        /*//enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)acc_ms_x_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
         // enviar peaks
-        // ...
+        uart_write_bytes(UART_NUM, (const char*)acc_ms_y_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)acc_ms_z_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)acc_g_x_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)acc_g_y_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)acc_g_z_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)gyr_rad_x_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)gyr_rad_y_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        // enviar peaks
+        uart_write_bytes(UART_NUM, (const char*)gyr_rad_z_peaks, len_peaks);
+        while (1) {
+            rLen  = serial_read(dataCON, 4);
+            if (rLen > 0) {
+                if (strcmp(dataCON, "RES") == 0) {
+                    break;
+                }
+            } 
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        */
     }
 
 

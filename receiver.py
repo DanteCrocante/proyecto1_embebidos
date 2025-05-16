@@ -61,6 +61,37 @@ def receive_rms():
     msg = "\n".join([ms, g, rad])
     return msg + "\n"
 
+#def receive_peaks():
+#    """ Funcion que recibe nueve 5 (fffff) de la ESP32 
+#    (que representan las rms) y los imprime en consola """
+#    data = receive_response()
+#
+#    data = unpack(5*'f', data)
+#
+#    return data
+
+#def print_peaks(data, counter):
+#    if counter == 1:
+#        msg = f"PEAKS acc_x[m/s²]: {data}"
+#    elif counter == 2:
+#        msg = f"PEAKS acc_y[m/s²]: {data}"
+#    elif counter == 3:
+#        msg = f"PEAKS acc_z[m/s²]: {data}"
+#    elif counter == 4:
+#        msg = f"PEAKS acc_x[g]: {data}"
+#    elif counter == 5:
+#        msg = f"PEAKS acc_y[g]: {data}"
+#    elif counter == 6:
+#        msg = f"PEAKS acc_z[g]: {data}"
+#    if counter == 1:
+#        msg = f"PEAKS gyr_x[rad/s]: {data}"
+#    elif counter == 2:
+#        msg = f"PEAKS gyr_y[rad/s]: {data}"
+#    elif counter == 3:
+#        msg = f"PEAKS gyr_z[rad/s]: {data}"
+#
+#    print(msg+'\n')
+
 
 def send_continue_message():
     """ Funcion para enviar un mensaje de continuacion a la ESP32 """
@@ -84,6 +115,7 @@ print("empieza correctamente")
 counter = 0
 err_counter = 0
 rms_ok = False
+#peaks_counter = 0
 while True:
     if ser.in_waiting > 0 and counter < WINDOWS_SIZE:
         try:
@@ -112,6 +144,19 @@ while True:
             if rms_ok:
                 print('RMS listas!\n')
                 send_continue_message()
+    #elif ser.in_waiting > 0:
+    #    try:
+    #        message = receive_peaks()
+    #    except:
+    #        continue
+    #    else:
+    #        peaks_counter += 1
+    #        print_peaks(message, counter)
+    #        send_continue_message()
+    #    finally:
+    #        if peaks_counter == 9:
+    #            print("Peaks listos!\n")
+    #            break
 
 
 # Se envia el mensaje de termino de comunicacion
