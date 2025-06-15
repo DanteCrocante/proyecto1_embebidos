@@ -11,86 +11,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "driver/uart.h"
-#include "math.h"
 #include "FFT.c"
+#include "uart1.c"
+#include "rms.c"
+#include "peaks.c"
+#include "vars.h"
 
-#define I2C_MASTER_SCL_IO				22				//GPIO pin
-#define I2C_MASTER_SDA_IO				21				//GPIO pin
-#define I2C_MASTER_FREQ_HZ				10000		
-#define ESP_SLAVE_ADDR					0x68
-#define WRITE_BIT				        0x0
-#define READ_BIT				        0x1
-#define ACK_CHECK_EN			        0x0
-#define EXAMPLE_I2C_ACK_CHECK_DIS		0x0
-#define ACK_VAL					        0x0
-#define NACK_VAL				        0x1
-#define Fodr                            800
-#define BUF_SIZE                        (128)
-#define TXD_PIN                         1
-#define RXD_PIN                         3
-#define UART_NUM                        UART_NUM_0
-#define BAUD_RATE                       115200
-#define REDIRECT_LOGS                   1 
-#define WINDOWS_SIZE                    20
 
-//===============>> UART
-
-// Function for sending things to UART1
-static int uart1_printf(const char *str, va_list ap) {
-    char *buf;
-    vasprintf(&buf, str, ap);
-    uart_write_bytes(UART_NUM_1, buf, strlen(buf));
-    free(buf);
-    return 0;
-}
-
-// Setup of UART connections 0 and 1, and try to redirect logs to UART1 if asked
-static void uart_setup() {
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    };
-
-    uart_param_config(UART_NUM_0, &uart_config);
-    uart_param_config(UART_NUM_1, &uart_config);
-    uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, 0);
-    uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, 0);
-
-    // Redirect ESP log to UART1
-    if (REDIRECT_LOGS) {
-        esp_log_set_vprintf(uart1_printf);
-    }
-}
-
-// Read UART_num for input with timeout of 1 sec
-int serial_read(char *buffer, int size){
-    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
-    return len;
-}
-
-static void uart_begin() {
-    // esperar un BEGIN antes de comenzar el envío de datos
-    char dataBEGIN[6];
-
-    while (1) {
-        int rLen = serial_read(dataBEGIN, 6);
-        if (rLen > 0) {
-            if (strcmp(dataBEGIN, "BEGIN") == 0) {
-                uart_write_bytes(UART_NUM, "OK\0", 3);
-                break;
-            }
-        }
-    }
-}
-
-static void uart_end() {
-    while (1) {
-        uart_write_bytes(UART_NUM, "OK\0", 3);
-    }
-}
 
 //===============>> BMI270
 
@@ -696,37 +623,6 @@ void internal_status(void)
 
 }
 
-/*Encontrar los 5 peaks maximos*/
-void encontrar_peaks(float *datos, float *peaks) {
-    int i, j;
-    float maximo;
-
-    for (i = 0; i < 5; i++) {
-        maximo = -1.0;
-        for (j = 0; j < WINDOWS_SIZE; j++) {
-            if (datos[j] > maximo) {
-                maximo = datos[j];
-            }
-        }
-        peaks[i] = maximo;
-        for (j = 0; j < WINDOWS_SIZE; j++) {
-            if (datos[j] == maximo) {
-                datos[j] = -1.0;
-                break;
-            }
-        }
-    }
-}
-
-/* Calcula el RMS de un arreglo de datos (floats). */
-float RMS(float *datos, int size) {
-    float suma = 0.0;
-    for (int i = 0; i < size; i++) {
-        suma += datos[i] * datos[i];
-    }
-    return sqrtf(suma / size);
-}
-
 /* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
  * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
 void lectura(void) {
@@ -735,21 +631,16 @@ void lectura(void) {
     uint8_t reg_data = 0x0C, data_data8[bytes_data8];
     uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
 
-    // Constantes de conversión
-    float ms = 78.4532/3276878.4532/32768;
-    float g = 8.000/32768;
-    float rad = 34.90659/32768;
-
     // Ventanas para cada unidad de medida, eje y valor medido
-    float acc_ms_x[WINDOWS_SIZE];
-    float acc_ms_y[WINDOWS_SIZE];
-    float acc_ms_z[WINDOWS_SIZE];
-    float acc_g_x[WINDOWS_SIZE];
-    float acc_g_y[WINDOWS_SIZE];
-    float acc_g_z[WINDOWS_SIZE];
-    float gyr_rad_x[WINDOWS_SIZE];
-    float gyr_rad_y[WINDOWS_SIZE];
-    float gyr_rad_z[WINDOWS_SIZE];
+    float acc_ms_x[WINDOW_LENGTH];
+    float acc_ms_y[WINDOW_LENGTH];
+    float acc_ms_z[WINDOW_LENGTH];
+    float acc_g_x[WINDOW_LENGTH];
+    float acc_g_y[WINDOW_LENGTH];
+    float acc_g_z[WINDOW_LENGTH];
+    float gyr_rad_x[WINDOW_LENGTH];
+    float gyr_rad_y[WINDOW_LENGTH];
+    float gyr_rad_z[WINDOW_LENGTH];
 
     // el envío se detiene al recibir un END
     char dataEND[4];
@@ -765,26 +656,26 @@ void lectura(void) {
     int len_data = sizeof(float)*9;
 
     // Alamcenar FFT (real)
-    float fft_acc_ms_x_re[WINDOWS_SIZE];
-    float fft_acc_ms_y_re[WINDOWS_SIZE];
-    float fft_acc_ms_z_re[WINDOWS_SIZE];
-    float fft_acc_g_x_re[WINDOWS_SIZE];
-    float fft_acc_g_y_re[WINDOWS_SIZE];
-    float fft_acc_g_z_re[WINDOWS_SIZE];
-    float fft_gyr_rad_x_re[WINDOWS_SIZE];
-    float fft_gyr_rad_y_re[WINDOWS_SIZE];
-    float fft_gyr_rad_z_re[WINDOWS_SIZE];
+    float fft_acc_ms_x_re[WINDOW_LENGTH];
+    float fft_acc_ms_y_re[WINDOW_LENGTH];
+    float fft_acc_ms_z_re[WINDOW_LENGTH];
+    float fft_acc_g_x_re[WINDOW_LENGTH];
+    float fft_acc_g_y_re[WINDOW_LENGTH];
+    float fft_acc_g_z_re[WINDOW_LENGTH];
+    float fft_gyr_rad_x_re[WINDOW_LENGTH];
+    float fft_gyr_rad_y_re[WINDOW_LENGTH];
+    float fft_gyr_rad_z_re[WINDOW_LENGTH];
 
     // Alamcenar FFT (imaginario)
-    float fft_acc_ms_x_im[WINDOWS_SIZE];
-    float fft_acc_ms_y_im[WINDOWS_SIZE];
-    float fft_acc_ms_z_im[WINDOWS_SIZE];
-    float fft_acc_g_x_im[WINDOWS_SIZE];
-    float fft_acc_g_y_im[WINDOWS_SIZE];
-    float fft_acc_g_z_im[WINDOWS_SIZE];
-    float fft_gyr_rad_x_im[WINDOWS_SIZE];
-    float fft_gyr_rad_y_im[WINDOWS_SIZE];
-    float fft_gyr_rad_z_im[WINDOWS_SIZE];
+    float fft_acc_ms_x_im[WINDOW_LENGTH];
+    float fft_acc_ms_y_im[WINDOW_LENGTH];
+    float fft_acc_ms_z_im[WINDOW_LENGTH];
+    float fft_acc_g_x_im[WINDOW_LENGTH];
+    float fft_acc_g_y_im[WINDOW_LENGTH];
+    float fft_acc_g_z_im[WINDOW_LENGTH];
+    float fft_gyr_rad_x_im[WINDOW_LENGTH];
+    float fft_gyr_rad_y_im[WINDOW_LENGTH];
+    float fft_gyr_rad_z_im[WINDOW_LENGTH];
 
     // Almacenar 5 peaks para cada unidad de medida, eje y valor medido
     float acc_ms_x_peaks[5];
@@ -796,17 +687,25 @@ void lectura(void) {
     float gyr_rad_x_peaks[5];
     float gyr_rad_y_peaks[5];
     float gyr_rad_z_peaks[5];
-
+    
     // largo del mensaje a enviar (peaks)
     int len_peaks = sizeof(float)*5;
-
+    
     // largo de mensaje recibido desde python
     int rLen;
-
+    
+    
     while (1) {
         
+        // Esperar mensaje ok
+        while (1) {
+            rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataCON, sizeof(dataCON), 100 / portTICK_PERIOD_MS);
+            if (rLen > 0 && strncmp(dataCON, "BEGIN", 5) == 0) {
+                break; // salir del bucle si se recibe "BEGIN"
+            }
+        }
         // medir hasta llenar ventanas
-        for (int i=0; i<WINDOWS_SIZE; i++) {
+        for (int i=0; i<WINDOW_LENGTH; i++) {
             bmi_read(&reg_intstatus, &tmp, 1);
 
             if ((tmp & 0b10000000) == 0x80) {
@@ -820,89 +719,92 @@ void lectura(void) {
                 gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
                 gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
 
-                printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/3276878.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
-                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
-                printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-
                 // Agregar cada medicion a su ventana respectiva
-                acc_ms_x[i] = (float)acc_x*ms;
-                acc_ms_y[i] = (float)acc_y*ms;
-                acc_ms_z[i] = (float)acc_z*ms;
-                acc_g_x[i] = (float)acc_x*g;
-                acc_g_y[i] = (float)acc_y*g;
-                acc_g_z[i] = (float)acc_z*g;
-                gyr_rad_x[i] = (float)gyr_x*rad;
-                gyr_rad_y[i] = (float)gyr_y*rad;
-                gyr_rad_z[i] = (float)gyr_z*rad;
+                acc_ms_x[i] = (float)acc_x*MS;
+                acc_ms_y[i] = (float)acc_y*MS;
+                acc_ms_z[i] = (float)acc_z*MS;
+                acc_g_x[i] = (float)acc_x*G;
+                acc_g_y[i] = (float)acc_y*G;
+                acc_g_z[i] = (float)acc_z*G;
+                gyr_rad_x[i] = (float)gyr_x*RAD;
+                gyr_rad_y[i] = (float)gyr_y*RAD;
+                gyr_rad_z[i] = (float)gyr_z*RAD;
 
-                // ===============>> enviar data vía UART
+            }
+        }
+        
+        // ===============>> enviar data vía UART
 
-                // arreglo con los datos a enviar
-                data[0] = acc_ms_x[i];
-                data[1] = acc_ms_y[i];
-                data[2] = acc_ms_z[i];
-                data[3] = acc_g_x[i];
-                data[4] = acc_g_y[i];
-                data[5] = acc_g_z[i];
-                data[6] = gyr_rad_x[i];
-                data[7] = gyr_rad_y[i];
-                data[8] = gyr_rad_z[i];
+        // arreglo con los datos a enviar
+        data[0] = acc_ms_x;
+        data[1] = acc_ms_y;
+        data[2] = acc_ms_z;
+        data[3] = acc_g_x;
+        data[4] = acc_g_y;
+        data[5] = acc_g_z;
+        data[6] = gyr_rad_x;
+        data[7] = gyr_rad_y;
+        data[8] = gyr_rad_z;
 
-                // enviar bytes
-                uart_write_bytes(UART_NUM, dataToSend, len_data);
-
-                // esperar respuesta
-                while (1) {
-                    rLen  = serial_read(dataCON, 4);
-                    if (rLen > 0) {
-                        if (strcmp(dataCON, "RES") == 0) {
-                            break;
-                        }
-                    } 
+        for (int j = 0; j < 9; j++) {
+            // Enviar cada dato de la ventana
+            uart_send_ventana(&data[j]); 
+            // Esperar mensaje CONTINUE
+            while (1) {
+                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataEND, sizeof(dataEND), 100 / portTICK_PERIOD_MS);
+                if (rLen > 0 && strncmp(dataEND, "CONTINUE", 8) == 0) {
+                    break; // salir del bucle si se recibe "CONTINUE"
                 }
-                vTaskDelay(pdMS_TO_TICKS(1000));
             }
         }
 
         // Calcular RMS
-        data[0] = RMS(acc_ms_x, WINDOWS_SIZE);
-        data[1] = RMS(acc_ms_y, WINDOWS_SIZE);
-        data[2] = RMS(acc_ms_z, WINDOWS_SIZE);
-        data[3] = RMS(acc_g_x, WINDOWS_SIZE);
-        data[4] = RMS(acc_g_y, WINDOWS_SIZE);
-        data[5] = RMS(acc_g_z, WINDOWS_SIZE);
-        data[6] = RMS(gyr_rad_x, WINDOWS_SIZE);
-        data[7] = RMS(gyr_rad_y, WINDOWS_SIZE);
-        data[8] = RMS(gyr_rad_z, WINDOWS_SIZE);
+        data[0] = RMS(acc_ms_x, WINDOW_LENGTH);
+        data[1] = RMS(acc_ms_y, WINDOW_LENGTH);
+        data[2] = RMS(acc_ms_z, WINDOW_LENGTH);
+        data[3] = RMS(acc_g_x, WINDOW_LENGTH);
+        data[4] = RMS(acc_g_y, WINDOW_LENGTH);
+        data[5] = RMS(acc_g_z, WINDOW_LENGTH);
+        data[6] = RMS(gyr_rad_x, WINDOW_LENGTH);
+        data[7] = RMS(gyr_rad_y, WINDOW_LENGTH);
+        data[8] = RMS(gyr_rad_z, WINDOW_LENGTH);
 
         // enviar bytes
-        uart_write_bytes(UART_NUM, dataToSend, len_data);
-
-        while (1) {
-            rLen  = serial_read(dataCON, 4);
-            if (rLen > 0) {
-                if (strcmp(dataCON, "RES") == 0) {
-                    break;
+        for (int j = 0; j < 9; j++) {
+            // Enviar cada dato de la ventana
+            uart_send_rms(&data[j]); 
+            // Esperar mensaje CONTINUE
+            while (1) {
+                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataEND, sizeof(dataEND), 100 / portTICK_PERIOD_MS);
+                if (rLen > 0 && strncmp(dataEND, "CONTINUE", 8) == 0) {
+                    break; // salir del bucle si se recibe "CONTINUE"
                 }
-            } 
+            }
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-
         // Calcular FFT
-        calcularFFT(acc_ms_x, WINDOWS_SIZE, fft_acc_ms_x_re, fft_acc_ms_x_im);
-        calcularFFT(acc_ms_y, WINDOWS_SIZE, fft_acc_ms_y_re, fft_acc_ms_y_im);
-        calcularFFT(acc_ms_z, WINDOWS_SIZE, fft_acc_ms_z_re, fft_acc_ms_z_im);
-        calcularFFT(acc_g_x, WINDOWS_SIZE, fft_acc_g_x_re, fft_acc_g_x_im);
-        calcularFFT(acc_g_y, WINDOWS_SIZE, fft_acc_g_y_re, fft_acc_g_y_im);
-        calcularFFT(acc_g_z, WINDOWS_SIZE, fft_acc_g_z_re, fft_acc_g_z_im);
-        calcularFFT(gyr_rad_x, WINDOWS_SIZE, fft_gyr_rad_x_re, fft_gyr_rad_x_im);
-        calcularFFT(gyr_rad_y, WINDOWS_SIZE, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
-        calcularFFT(gyr_rad_z, WINDOWS_SIZE, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
+        calcularFFT(acc_ms_x, WINDOW_LENGTH, fft_acc_ms_x_re, fft_acc_ms_x_im);
+        calcularFFT(acc_ms_y, WINDOW_LENGTH, fft_acc_ms_y_re, fft_acc_ms_y_im);
+        calcularFFT(acc_ms_z, WINDOW_LENGTH, fft_acc_ms_z_re, fft_acc_ms_z_im);
+        calcularFFT(acc_g_x, WINDOW_LENGTH, fft_acc_g_x_re, fft_acc_g_x_im);
+        calcularFFT(acc_g_y, WINDOW_LENGTH, fft_acc_g_y_re, fft_acc_g_y_im);
+        calcularFFT(acc_g_z, WINDOW_LENGTH, fft_acc_g_z_re, fft_acc_g_z_im);
+        calcularFFT(gyr_rad_x, WINDOW_LENGTH, fft_gyr_rad_x_re, fft_gyr_rad_x_im);
+        calcularFFT(gyr_rad_y, WINDOW_LENGTH, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
+        calcularFFT(gyr_rad_z, WINDOW_LENGTH, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
 
         // enviar bytes
-        // ...
-
+        // ...0
+        for (int j = 0; j < 9; j++) {
+            // Enviar cada dato de la ventana
+            uart_send_fft(&data[j]); 
+            // Esperar mensaje CONTINUE
+            while (1) {
+                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataEND, sizeof(dataEND), 100 / portTICK_PERIOD_MS);
+                if (rLen > 0 && strncmp(dataEND, "CONTINUE", 8) == 0) {
+                    break; // salir del bucle si se recibe "CONTINUE"
+                }
+            }
+        }
         // encontrar peaks
         encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
         encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
@@ -915,7 +817,18 @@ void lectura(void) {
         encontrar_peaks(gyr_rad_z, gyr_rad_z_peaks);
 
         // enviar peaks
-        // ...
+        for (int j = 0; j < 9; j++) {
+            // Enviar cada dato de la ventana
+            uart_send_peaks(&data[j]); 
+            // Esperar mensaje CONTINUE
+            while (1) {
+                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataEND, sizeof(dataEND), 100 / portTICK_PERIOD_MS);
+                if (rLen > 0 && strncmp(dataEND, "CONTINUE", 8) == 0) {
+                    break; // salir del bucle si se recibe "CONTINUE"
+                }
+            }
+        }
+        uart_end(); // enviar mensaje END
     }
 
 

@@ -33,19 +33,17 @@ def receive_data():
     msg = "\n".join([ms, g, rad])
     return msg + "\n"
 
-def receive_data():
-    """ Funcion que recibe nueve floats (fffffffff) de la ESP32 
+def receive_ventana():
+    """ Funcion que recibe una ventana de datos (WINDOWS_SIZE floats) de la ESP32 
     y los imprime en consola """
+    message = pack('6s','BEGIN\0'.encode())
+    send_message(message)
+    time.sleep(2)
     data = receive_response()
 
-    data = unpack(9*'f', data)
+    data = unpack(WINDOWS_SIZE * 'f', data)
 
-    ms = f"acc[m/s²]: x={data[0]} y={data[1]} z={data[2]}"
-    g = f"acc[g]: x={data[3]} y={data[4]} z={data[5]}"
-    rad = f"gyr[rad/s]: x={data[6]} y={data[7]} z={data[8]}"
-
-    msg = "\n".join([ms, g, rad])
-    return msg + "\n"
+    return data
 
 def receive_rms():
     """ Funcion que recibe nueve floats (fffffffff) de la ESP32 
@@ -84,6 +82,15 @@ print("empieza correctamente")
 counter = 0
 err_counter = 0
 rms_ok = False
+
+# Obtener las ventanas de datos, son 9 ventanas de 20 datos cada una
+for i in range(9):
+    data = receive_ventana()
+    print(f"Ventana {i+1}\n------------")
+    print(data)
+    send_end_message()
+
+'''
 while True:
     if ser.in_waiting > 0 and counter < WINDOWS_SIZE:
         try:
@@ -112,6 +119,7 @@ while True:
             if rms_ok:
                 print('RMS listas!\n')
                 send_continue_message()
+'''
 
 
 # Se envia el mensaje de termino de comunicacion
