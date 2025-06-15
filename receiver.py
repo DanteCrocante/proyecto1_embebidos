@@ -36,7 +36,7 @@ def receive_data():
 def receive_ventana():
     """ Funcion que recibe una ventana de datos (WINDOWS_SIZE floats) de la ESP32 
     y los imprime en consola """
-    message = pack('6s','BEGIN\0'.encode())
+    message = pack('6s','CONTINUE\0'.encode())
     send_message(message)
     time.sleep(2)
     data = receive_response()
@@ -48,6 +48,9 @@ def receive_ventana():
 def receive_rms():
     """ Funcion que recibe nueve floats (fffffffff) de la ESP32 
     (que representan las rms) y los imprime en consola """
+    message = pack('6s','CONTINUE\0'.encode())
+    send_message(message)
+    time.sleep(2)
     data = receive_response()
 
     data = unpack(9*'f', data)
@@ -62,7 +65,7 @@ def receive_rms():
 
 def send_continue_message():
     """ Funcion para enviar un mensaje de continuacion a la ESP32 """
-    end_message = pack('4s', 'RES\0'.encode())
+    end_message = pack('9s', 'CONTINUE\0'.encode())
     ser.write(end_message)
 
 def send_end_message():
