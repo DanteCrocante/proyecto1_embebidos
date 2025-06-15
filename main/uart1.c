@@ -127,7 +127,7 @@ static void uart_send_fft(float *data_re, float *data_im) {
     while(1) {
         const char *dataToSend_re = (const char *)data_re;
         const char *dataToSend_im = (const char *)data_im;
-        int len_data = WINDOW_LENGTH * sizeof(float);
+        int len_data = sizeof(float) * WINDOW_LENGTH;
         uart_write_bytes(UART_NUM, dataToSend_re, len_data);
         uart_write_bytes(UART_NUM, dataToSend_im, len_data);
         int rLen = serial_read(dataResponse2, 4);
