@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -6,13 +5,14 @@
 #include "math.h"
 #include "esp_task.h"
 #include <string.h>
-#include <stdlib.h>
-#include <time.h>
-#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/uart.h"
-#include "math.h"
-#include "FFT.c"
+#include <vars.h>
+#include <peaks.h>
+#include <fft.h>
+#include <rms.h>
+#include <array.h>
+#include <send_string.h>
+#include <uart.h>
 
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
@@ -25,74 +25,28 @@
 #define ACK_VAL					        0x0
 #define NACK_VAL				        0x1
 #define Fodr                            800
-#define BUF_SIZE                        (128)
+
+#define BUFF_SIZE                       (128)
 #define TXD_PIN                         1
 #define RXD_PIN                         3
-#define UART_NUM                        UART_NUM_0
+#define UART_NUM                        UART_NUM_0 
 #define BAUD_RATE                       115200
-#define REDIRECT_LOGS                   1 
-#define WINDOWS_SIZE                    20
+#define REDIRECT_LOGS                   1
 
-//===============>> UART
+/* 
+============== CONSTANTES DE CONVERSIÓN ======
+*/
 
-// Function for sending things to UART1
-static int uart1_printf(const char *str, va_list ap) {
-    char *buf;
-    vasprintf(&buf, str, ap);
-    uart_write_bytes(UART_NUM_1, buf, strlen(buf));
-    free(buf);
-    return 0;
-}
+#define WINDOW_SIZE                     20
+#define N_PEAKS                         5
+#define G                               (8.000/32768)
+#define RAD_S                           (34.90659/32768)
+#define MS                              (78.4532/3276878.4532/32768)
+#define M_PI                            (3.14159)
 
-// Setup of UART connections 0 and 1, and try to redirect logs to UART1 if asked
-static void uart_setup() {
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    };
-
-    uart_param_config(UART_NUM_0, &uart_config);
-    uart_param_config(UART_NUM_1, &uart_config);
-    uart_driver_install(UART_NUM_0, BUF_SIZE * 2, 0, 0, NULL, 0);
-    uart_driver_install(UART_NUM_1, BUF_SIZE * 2, 0, 0, NULL, 0);
-
-    // Redirect ESP log to UART1
-    if (REDIRECT_LOGS) {
-        esp_log_set_vprintf(uart1_printf);
-    }
-}
-
-// Read UART_num for input with timeout of 1 sec
-int serial_read(char *buffer, int size){
-    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
-    return len;
-}
-
-static void uart_begin() {
-    // esperar un BEGIN antes de comenzar el envío de datos
-    char dataBEGIN[6];
-
-    while (1) {
-        int rLen = serial_read(dataBEGIN, 6);
-        if (rLen > 0) {
-            if (strcmp(dataBEGIN, "BEGIN") == 0) {
-                uart_write_bytes(UART_NUM, "OK\0", 3);
-                break;
-            }
-        }
-    }
-}
-
-static void uart_end() {
-    while (1) {
-        uart_write_bytes(UART_NUM, "OK\0", 3);
-    }
-}
-
-//===============>> BMI270
+/* 
+============== Código Base ===================
+*/
 
 esp_err_t ret = ESP_OK;
 esp_err_t ret2 = ESP_OK;
@@ -569,22 +523,22 @@ esp_err_t bmi_write(uint8_t *data_address, uint8_t *data_wr, size_t size) {
 esp_err_t bmi_init() {
     esp_err_t ret;
     i2c_master_bus_config_t i2c_mst_config = {
-    .clk_source = I2C_CLK_SRC_DEFAULT,
-    .i2c_port = I2C_NUM_0,
-    .scl_io_num = I2C_MASTER_SCL_IO,
-    .sda_io_num = I2C_MASTER_SDA_IO,
-    .glitch_ignore_cnt = 7,
-    .flags.enable_internal_pullup = true,
-};
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = I2C_NUM_0,
+        .scl_io_num = I2C_MASTER_SCL_IO,
+        .sda_io_num = I2C_MASTER_SDA_IO,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
 
-i2c_master_bus_handle_t bus_handle;
-ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_mst_config, &bus_handle));
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_mst_config, &bus_handle));
 
-i2c_device_config_t dev_cfg = {
-    .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-    .device_address = ESP_SLAVE_ADDR,
-    .scl_speed_hz = 100000,
-};
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = ESP_SLAVE_ADDR,
+        .scl_speed_hz = 100000,
+    };
 
     // Add I2C device
     ret = i2c_master_bus_add_device(bus_handle,&dev_cfg, &device);
@@ -612,15 +566,8 @@ void chipid(void) {
 void softreset(void) {
     uint8_t reg_softreset=0x7E, val_softreset = 0xB6;
     
-    ret = bmi_write( &reg_softreset, &val_softreset,1);
+    ret = bmi_write(&reg_softreset, &val_softreset, 1);
     vTaskDelay(1000 /portTICK_PERIOD_MS);
-    if(ret != ESP_OK){
-        //printf("\nError en softreset: %s \n",esp_err_to_name(ret));
-    }
-    else {
-         //printf("\nSoftreset: OK\n\n");
-    }
-    
 }
 
 /* Inicializa el sensor. */
@@ -628,42 +575,23 @@ void initialization(void) {
 
     uint8_t reg_pwr_conf_advpowersave=0x7C, val_pwr_conf_advpowersave=0x00;
     uint8_t reg_init_ctrl=0x59, val_init_ctrl=0x00, val_init_ctrl2=0x01;
-    uint8_t reg_init_data=0x5E; //, tmp;
-
-    //printf("Inicializando ...\n");
+    uint8_t reg_init_data=0x5E;
 
     bmi_write( &reg_pwr_conf_advpowersave, &val_pwr_conf_advpowersave,1);
 
-    
     vTaskDelay(1000 /portTICK_PERIOD_MS);
 
-    ret=bmi_write( &reg_init_ctrl, &val_init_ctrl,1);
-
+    ret=bmi_write(&reg_init_ctrl, &val_init_ctrl, 1);
 
     int config_size = sizeof(bmi270_config_file);
-    //printf("Tamano config_file: %d\n\n",config_size);
 
-    ret=bmi_write( &reg_init_data, (uint8_t*)bmi270_config_file, config_size);
-    if(ret != ESP_OK) {
-        //printf("\nError cargando config_file\n");
-    }
-    else {
-        //printf("\nConfig_file cargado.\n");
-    }
-
+    ret=bmi_write(&reg_init_data, (uint8_t*)bmi270_config_file, config_size);
+    
     vTaskDelay(1000 /portTICK_PERIOD_MS);
 
-    ret=bmi_write( &reg_init_ctrl, &val_init_ctrl2,1);
-    // if(ret != ESP_OK){
-    //     printf("Error en write4: %s \n",esp_err_to_name(ret));
-    // }
-    // else {
-    //      printf("Init_ctrl = 1\n");
-    // }
+    ret=bmi_write(&reg_init_ctrl, &val_init_ctrl2, 1);
 
-    //printf("\nAlgoritmo de inicializacion finalizado.\n\n");
-    
-    //vTaskDelay(1000 /portTICK_PERIOD_MS);
+    vTaskDelay(1000 /portTICK_PERIOD_MS);
 }
 
 /* Chequea que el sensor esté correctamente inicializado. */
@@ -673,253 +601,77 @@ void check_initialization(void) {
     
     vTaskDelay(1000 /portTICK_PERIOD_MS);
 
-    bmi_read( &reg_internalstatus, &tmp,1);
-    //printf("Init_status.0: %x \n",(tmp & 0b00001111));
-    if((tmp & 0b00001111)==1){
-        //printf("Comprobacion Inicializacion: OK\n\n");
-    }
-    else {
-        //printf("Inicializacion fallida\n\n");
-        exit(EXIT_SUCCESS);
-    }
+    bmi_read(&reg_internalstatus, &tmp, 1);
 }
 
 /* Consulta por el estado interno del BMI270.*/
-void internal_status(void)
-{
+void internal_status(void) {
     uint8_t reg_internalstatus=0x21;
     uint8_t tmp;
 
     bmi_read( &reg_internalstatus, &tmp,1);
-    //printf("Initial status: %x \n",(tmp & 0b00001111));
-    //printf("Internal Status: %2X\n\n", tmp);
-
 }
 
-/*Encontrar los 5 peaks maximos*/
-void encontrar_peaks(float *datos, float *peaks) {
-    int i, j;
-    float maximo;
+/* 
+============== CÓDIGO UART ===================
+*/
 
-    for (i = 0; i < 5; i++) {
-        maximo = -1.0;
-        for (j = 0; j < WINDOWS_SIZE; j++) {
-            if (datos[j] > maximo) {
-                maximo = datos[j];
-            }
-        }
-        peaks[i] = maximo;
-        for (j = 0; j < WINDOWS_SIZE; j++) {
-            if (datos[j] == maximo) {
-                datos[j] = -1.0;
-                break;
-            }
-        }
+int serial_read(char *buffer, int size){
+    int len = uart_read_bytes(UART_NUM, (uint8_t*)buffer, size, pdMS_TO_TICKS(1000));
+    return len;
+}
+
+int serial_write(void* data, int size) {
+    uart_write_bytes(UART_NUM, data, size);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    return 0;
+}
+
+static int uart1_printf(const char *str, va_list ap) {
+    char *buf;
+    vasprintf(&buf, str, ap);
+    uart_write_bytes(UART_NUM_1, buf, strlen(buf));
+    free(buf);
+    return 0;
+}
+
+static void uart_setup(void) {
+    uart_config_t uart_config = {
+        .baud_rate  = BAUD_RATE,
+        .data_bits  = UART_DATA_8_BITS,
+        .parity     = UART_PARITY_DISABLE,
+        .stop_bits  = UART_STOP_BITS_1,
+        .flow_ctrl  = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+    uart_param_config(UART_NUM_0, &uart_config);
+    uart_param_config(UART_NUM_1, &uart_config);
+    uart_driver_install(UART_NUM_0, BUFF_SIZE*2, 0, 0, NULL, 0);
+    uart_driver_install(UART_NUM_1, BUFF_SIZE*2, 0, 0, NULL, 0);
+
+    // Redirect ESP log to UART1
+    if (REDIRECT_LOGS) {
+        esp_log_set_vprintf(uart1_printf);
     }
 }
 
-/* Calcula el RMS de un arreglo de datos (floats). */
-float RMS(float *datos, int size) {
-    float suma = 0.0;
-    for (int i = 0; i < size; i++) {
-        suma += datos[i] * datos[i];
-    }
-    return sqrtf(suma / size);
-}
-
-/* Extrae datos de aceleración y giroscopio del sensor BMI270, los procesa 
- * e imprime en la salida estándar. Se puede implementar lectura de temperatura. */
-void lectura(void) {
-    uint8_t reg_intstatus=0x03, tmp;
-    int bytes_data8 = 12;
-    uint8_t reg_data = 0x0C, data_data8[bytes_data8];
-    uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
-
-    // Constantes de conversión
-    float ms = 78.4532/3276878.4532/32768;
-    float g = 8.000/32768;
-    float rad = 34.90659/32768;
-
-    // Ventanas para cada unidad de medida, eje y valor medido
-    float acc_ms_x[WINDOWS_SIZE];
-    float acc_ms_y[WINDOWS_SIZE];
-    float acc_ms_z[WINDOWS_SIZE];
-    float acc_g_x[WINDOWS_SIZE];
-    float acc_g_y[WINDOWS_SIZE];
-    float acc_g_z[WINDOWS_SIZE];
-    float gyr_rad_x[WINDOWS_SIZE];
-    float gyr_rad_y[WINDOWS_SIZE];
-    float gyr_rad_z[WINDOWS_SIZE];
-
-    // el envío se detiene al recibir un END
-    char dataEND[4];
-
-    // esperar mensaje de continuación antes de seguir midiendo
-    char dataCON[4];
-
-    // arreglo con los datos a enviar
-    float data[9];
-    const char* dataToSend = (const char*)data;
-
-    // largo del mensaje a enviar (data)
-    int len_data = sizeof(float)*9;
-
-    // Alamcenar FFT (real)
-    float fft_acc_ms_x_re[WINDOWS_SIZE];
-    float fft_acc_ms_y_re[WINDOWS_SIZE];
-    float fft_acc_ms_z_re[WINDOWS_SIZE];
-    float fft_acc_g_x_re[WINDOWS_SIZE];
-    float fft_acc_g_y_re[WINDOWS_SIZE];
-    float fft_acc_g_z_re[WINDOWS_SIZE];
-    float fft_gyr_rad_x_re[WINDOWS_SIZE];
-    float fft_gyr_rad_y_re[WINDOWS_SIZE];
-    float fft_gyr_rad_z_re[WINDOWS_SIZE];
-
-    // Alamcenar FFT (imaginario)
-    float fft_acc_ms_x_im[WINDOWS_SIZE];
-    float fft_acc_ms_y_im[WINDOWS_SIZE];
-    float fft_acc_ms_z_im[WINDOWS_SIZE];
-    float fft_acc_g_x_im[WINDOWS_SIZE];
-    float fft_acc_g_y_im[WINDOWS_SIZE];
-    float fft_acc_g_z_im[WINDOWS_SIZE];
-    float fft_gyr_rad_x_im[WINDOWS_SIZE];
-    float fft_gyr_rad_y_im[WINDOWS_SIZE];
-    float fft_gyr_rad_z_im[WINDOWS_SIZE];
-
-    // Almacenar 5 peaks para cada unidad de medida, eje y valor medido
-    float acc_ms_x_peaks[5];
-    float acc_ms_y_peaks[5];
-    float acc_ms_z_peaks[5];
-    float acc_g_x_peaks[5];
-    float acc_g_y_peaks[5];
-    float acc_g_z_peaks[5];
-    float gyr_rad_x_peaks[5];
-    float gyr_rad_y_peaks[5];
-    float gyr_rad_z_peaks[5];
-
-    // largo del mensaje a enviar (peaks)
-    int len_peaks = sizeof(float)*5;
-
-    // largo de mensaje recibido desde python
-    int rLen;
+static void uart_begin(void) {
+    char dataBEGIN[6];
 
     while (1) {
-        
-        // medir hasta llenar ventanas
-        for (int i=0; i<WINDOWS_SIZE; i++) {
-            bmi_read(&reg_intstatus, &tmp, 1);
+        int rLen = serial_read(dataBEGIN, 6);
 
-            if ((tmp & 0b10000000) == 0x80) {
-                ret = bmi_read(&reg_data, (uint8_t*) data_data8, bytes_data8);
-
-                // Obtener mediciones RAW
-                acc_x = ((uint16_t) data_data8[1] << 8) | (uint16_t) data_data8[0];
-                acc_y = ((uint16_t) data_data8[3] << 8) | (uint16_t) data_data8[2];
-                acc_z = ((uint16_t) data_data8[5] << 8) | (uint16_t) data_data8[4];
-                gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
-                gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
-                gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
-
-                printf("acc_x: %f m/s2     acc_y: %f m/s2     acc_z: %f m/s2\n", (int16_t)acc_x*(78.4532/3276878.4532/32768), (int16_t)acc_y*(78.4532/32768), (int16_t)acc_z*(78.4532/32768));
-                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g     gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768), (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-                printf("acc_x: %f g     acc_y: %f g     acc_z: %f g  \n", (int16_t)acc_x*(8.000/32768), (int16_t)acc_y*(8.000/32768), (int16_t)acc_z*(8.000/32768));    
-                printf("gyr_x: %f rad/s     gyr_y: %f rad/s      gyr_z: %f rad/s\n", (int16_t)gyr_x*(34.90659/32768), (int16_t)gyr_y*(34.90659/32768), (int16_t)gyr_z*(34.90659/32768));
-
-                // Agregar cada medicion a su ventana respectiva
-                acc_ms_x[i] = (float)acc_x*ms;
-                acc_ms_y[i] = (float)acc_y*ms;
-                acc_ms_z[i] = (float)acc_z*ms;
-                acc_g_x[i] = (float)acc_x*g;
-                acc_g_y[i] = (float)acc_y*g;
-                acc_g_z[i] = (float)acc_z*g;
-                gyr_rad_x[i] = (float)gyr_x*rad;
-                gyr_rad_y[i] = (float)gyr_y*rad;
-                gyr_rad_z[i] = (float)gyr_z*rad;
-
-                // ===============>> enviar data vía UART
-
-                // arreglo con los datos a enviar
-                data[0] = acc_ms_x[i];
-                data[1] = acc_ms_y[i];
-                data[2] = acc_ms_z[i];
-                data[3] = acc_g_x[i];
-                data[4] = acc_g_y[i];
-                data[5] = acc_g_z[i];
-                data[6] = gyr_rad_x[i];
-                data[7] = gyr_rad_y[i];
-                data[8] = gyr_rad_z[i];
-
-                // enviar bytes
-                uart_write_bytes(UART_NUM, dataToSend, len_data);
-
-                // esperar respuesta
-                while (1) {
-                    rLen  = serial_read(dataCON, 4);
-                    if (rLen > 0) {
-                        if (strcmp(dataCON, "RES") == 0) {
-                            break;
-                        }
-                    } 
-                }
-                vTaskDelay(pdMS_TO_TICKS(1000));
-            }
+        if (rLen > 0 && strcmp(dataBEGIN, "BEGIN")==0) {
+            uart_write_bytes(UART_NUM, "OK\0", 3);
+            break;
         }
-
-        // Calcular RMS
-        data[0] = RMS(acc_ms_x, WINDOWS_SIZE);
-        data[1] = RMS(acc_ms_y, WINDOWS_SIZE);
-        data[2] = RMS(acc_ms_z, WINDOWS_SIZE);
-        data[3] = RMS(acc_g_x, WINDOWS_SIZE);
-        data[4] = RMS(acc_g_y, WINDOWS_SIZE);
-        data[5] = RMS(acc_g_z, WINDOWS_SIZE);
-        data[6] = RMS(gyr_rad_x, WINDOWS_SIZE);
-        data[7] = RMS(gyr_rad_y, WINDOWS_SIZE);
-        data[8] = RMS(gyr_rad_z, WINDOWS_SIZE);
-
-        // enviar bytes
-        uart_write_bytes(UART_NUM, dataToSend, len_data);
-
-        while (1) {
-            rLen  = serial_read(dataCON, 4);
-            if (rLen > 0) {
-                if (strcmp(dataCON, "RES") == 0) {
-                    break;
-                }
-            } 
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));
-
-        // Calcular FFT
-        calcularFFT(acc_ms_x, WINDOWS_SIZE, fft_acc_ms_x_re, fft_acc_ms_x_im);
-        calcularFFT(acc_ms_y, WINDOWS_SIZE, fft_acc_ms_y_re, fft_acc_ms_y_im);
-        calcularFFT(acc_ms_z, WINDOWS_SIZE, fft_acc_ms_z_re, fft_acc_ms_z_im);
-        calcularFFT(acc_g_x, WINDOWS_SIZE, fft_acc_g_x_re, fft_acc_g_x_im);
-        calcularFFT(acc_g_y, WINDOWS_SIZE, fft_acc_g_y_re, fft_acc_g_y_im);
-        calcularFFT(acc_g_z, WINDOWS_SIZE, fft_acc_g_z_re, fft_acc_g_z_im);
-        calcularFFT(gyr_rad_x, WINDOWS_SIZE, fft_gyr_rad_x_re, fft_gyr_rad_x_im);
-        calcularFFT(gyr_rad_y, WINDOWS_SIZE, fft_gyr_rad_y_re, fft_gyr_rad_y_im);
-        calcularFFT(gyr_rad_z, WINDOWS_SIZE, fft_gyr_rad_z_re, fft_gyr_rad_z_im);
-
-        // enviar bytes
-        // ...
-
-        // encontrar peaks
-        encontrar_peaks(acc_ms_x, acc_ms_x_peaks);
-        encontrar_peaks(acc_ms_y, acc_ms_y_peaks);
-        encontrar_peaks(acc_ms_z, acc_ms_z_peaks);
-        encontrar_peaks(acc_g_x, acc_g_x_peaks);
-        encontrar_peaks(acc_g_y, acc_g_y_peaks);
-        encontrar_peaks(acc_g_z, acc_g_z_peaks);
-        encontrar_peaks(gyr_rad_x, gyr_rad_x_peaks);
-        encontrar_peaks(gyr_rad_y, gyr_rad_y_peaks);
-        encontrar_peaks(gyr_rad_z, gyr_rad_z_peaks);
-
-        // enviar peaks
-        // ...
     }
-
-
+    vTaskDelay(pdMS_TO_TICKS(1000));
 }
+
+/* 
+============== MODOS DE PODER ================
+*/
 
 void normal(void) {
     // MODO DE PODER NORMAL
@@ -937,7 +689,6 @@ void normal(void) {
     } else if (Fodr == 1600) {
         val_acc_conf = 0xAC; val_gyr_conf = 0xAC;
     } else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -965,7 +716,6 @@ void performance(void) {
     } else if (Fodr == 1600) {
         val_acc_conf = 0xAC; val_gyr_conf = 0xAC;
     } else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -992,7 +742,6 @@ void low(void) {
     } else if (Fodr == 1600) {
         val_acc_conf = 0x2C;
     } else {
-        printf("FRECUENCIA DE MUESTREO BMI270 INCORRECTO.\n");
         exit(EXIT_SUCCESS);
     }
 
@@ -1015,28 +764,175 @@ void suspend(void) {
 }
 
 void bmipowermode(int mode) {
-    
     if (mode == 0) {
         normal();
     } else if (mode == 1) {
         performance();
     } else if (mode == 2) {
-        low();
+        low()
     } else {
         suspend();
     }
 }
 
-void app_main(void) {       
+/*
+============== RMS, FFT Y PEAKS ==============
+*/
+
+float calcular_rms(float *datos, int size) {
+    float suma = 0.0;
+    for (int i=0; i<size; i++) {
+        suma += datos[i] * datos[i];
+    }
+
+    return sqrtf(suma/size);
+}
+
+void calcular_fft(float *array, int size, float *array_re, float *array_im) {
+    for (int k = 0; k < size; k++) {
+        float real = 0;
+        float imag = 0;
+
+        for (int n = 0; n < size; n++) {
+            float angulo = 2 * M_PI * k * n / size;
+            float cos_angulo = cos(angulo);
+            float sin_angulo = -sin(angulo);
+
+            real += array[n] * cos_angulo;
+            imag += array[n] * sin_angulo;
+        }
+        real /= size;
+        imag /= size;
+        array_re[k] = real;
+        array_im[k] = imag;
+    }
+}
+
+void encontrar_peaks(float *datos, float *peaks) {
+    int i, j;
+    float maximo;
+
+    for (i = 0; i < 5; i++) {
+        maximo = -1.0;
+        for (j = 0; j < WINDOW_SIZE; j++) {
+            if (datos[j] > maximo) {
+                maximo = datos[j];
+            }
+        }
+        peaks[i] = maximo;
+        for (j = 0; j < WINDOW_SIZE; j++) {
+            if (datos[j] == maximo) {
+                datos[j] = -1.0;
+                break;
+            }
+        }
+    }
+}
+
+/* 
+============== LECTURA DE DATOS ==============
+*/
+
+void read_write(void) {
+    uint8_t reg_intstatus = 0x03, tmp;
+    int bytes_data8 = 12;
+    uint8_t reg_data = 0x0C, data_data8[bytes_data8];
+    uint16_t acc_x, acc_y, acc_z, gyr_x, gyr_y, gyr_z;
+
+    float acc_g[3][WINDOW_SIZE], acc_ms[3][WINDOW_SIZE], acc_peaks[3][N_PEAKS], acc_fft_re[3][WINDOW_SIZE], acc_fft_im[3][WINDOW_SIZE], acc_rms[3];
+    float gyr[3][WINDOW_SIZE], gyr_peaks[3][N_PEAKS], gyr_fft_re[3][WINDOW_SIZE], gyr_fft_im[3][WINDOW_SIZE], gyr_rms[3];
+
+    while (1) {
+        for (int i=0; i<WINDOW_SIZE; i++) {
+            bmi_read(&reg_intstatus, &tmp; 1);
+
+            if ((tmp & 0b10000000)==0x80) {
+                ret = bmi_read(&reg_data, (uint8_t*)data_data8, bytes_data8);
+                
+                /* Obtener data del sensor */
+                acc_x = ((uint16_t) data_data8[1] << 8) | (uint16_t) data_data8[0];
+                acc_y = ((uint16_t) data_data8[3] << 8) | (uint16_t) data_data8[2];
+                acc_z = ((uint16_t) data_data8[5] << 8) | (uint16_t) data_data8[4];
+
+                gyr_x = ((uint16_t) data_data8[7] << 8) | (uint16_t) data_data8[6];
+                gyr_y = ((uint16_t) data_data8[9] << 8) | (uint16_t) data_data8[8];
+                gyr_z = ((uint16_t) data_data8[11] << 8) | (uint16_t) data_data8[10];
+
+                /* Convertir datos */
+                acc_ms[0][i] = (float)(acc_x*MS);
+                acc_ms[1][i] = (float)(acc_y*MS);
+                acc_ms[2][i] = (float)(acc_z*MS);
+
+                acc_g[0][i] = (float)(acc_x*G);
+                acc_g[1][i] = (float)(acc_y*G);
+                acc_g[2][i] = (float)(acc_z*G);
+
+                gyr[0][i] = (float)(gyr_x*RAD_S);
+                gyr[1][i] = (float)(gyr_y*RAD_S);
+                gyr[2][i] = (float)(gyr_z*RAD_S);
+            }
+        }
+
+        /* Enviar data a la ESP32 */
+        for (int i=0; i<3; i++) {
+            serial_write(acc_ms[i], sizeof(float)*WINDOW_SIZE);
+            serial_write(acc_g[i], sizeof(float)*WINDOW_SIZE);
+            serial_write(gyr[i], sizeof(float)*WINDOW_SIZE);
+        }
+
+        /* Calcular RMS y enviar resultados a la ESP32 */
+        for (int i=0; i<3; i++) {
+            acc_rms[i] = calcular_rms(acc_ms[i], WINDOW_SIZE);
+            gyr_rms[i] = calcular_rms(gyr_rms[i], WINDOW_SIZE);
+
+            serial_write(acc_rms[i], sizeof(float));
+            serial_write(gyr_rms[i], sizeof(float));
+        }
+
+        /* Calcular FFT y enviar resultados a la ESP32 */
+        for (int i=0; i<3; i++) {
+            calcular_fft(acc_ms[i], WINDOW_SIZE, acc_fft_re[i], acc_fft_im[i]);
+            calcular_fft(gyr[i], WINDOW_SIZE, gyr_fft_re[i], gyr_fft_im[i]);
+
+            serial_write(acc_fft_re[i], sizeof(float)*WINDOW_SIZE);
+            serial_write(acc_fft_im[i], sizeof(float)*WINDOW_SIZE);
+            serial_write(gyr_fft_re[i], sizeof(float)*WINDOW_SIZE);
+            serial_write(gyr_fft_im[i], sizeof(float)*WINDOW_SIZE);
+        }
+
+        /* Encontrar peaks y enviar resultados a la ESP32 */
+        for (int i=0; i<3; i++) {
+            encontrar_peaks(acc_ms[i], acc_peaks[i]);
+            encontrar_peaks(gyr[i], gyr_peaks[i]);
+
+            serial_write(acc_peaks[i], sizeof(float)*N_PEAKS);
+            serial_write(gyr_peaks[i], sizeof(float)*N_PEAKS);
+        }
+
+        /* Esperar a que llegue el mensaje de término */
+        char signal[4];
+        int rLen = serial_read(signal, 4);
+        if (rLen > 0 && strcmp(signal, "END")==0)
+            break;
+    }
+}
+
+/* 
+============== MAIN ==========================
+*/
+void app_main(void) {
+    /* Setup bmi270 */
     ESP_ERROR_CHECK(bmi_init());
     softreset();
     chipid();
     initialization();
     check_initialization();
     bmipowermode(0);
-    internal_status();    
+    internal_status();
+    /* Setup comunicación serial */
     uart_setup();
     uart_begin();
-    lectura();
-    uart_end();
+    /* ... lectura ... */
+    read_write()
+    
 }
