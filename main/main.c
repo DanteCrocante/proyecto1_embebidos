@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -5,14 +6,11 @@
 #include "math.h"
 #include "esp_task.h"
 #include <string.h>
+
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include <vars.h>
-#include <peaks.h>
-#include <fft.h>
-#include <rms.h>
-#include <array.h>
-#include <send_string.h>
-#include <uart.h>
+#include "driver/uart.h"
 
 #define I2C_MASTER_SCL_IO				22				//GPIO pin
 #define I2C_MASTER_SDA_IO				21				//GPIO pin
@@ -769,7 +767,7 @@ void bmipowermode(int mode) {
     } else if (mode == 1) {
         performance();
     } else if (mode == 2) {
-        low()
+        low();
     } else {
         suspend();
     }
@@ -844,7 +842,7 @@ void read_write(void) {
 
     while (1) {
         for (int i=0; i<WINDOW_SIZE; i++) {
-            bmi_read(&reg_intstatus, &tmp; 1);
+            bmi_read(&reg_intstatus, &tmp, 1);
 
             if ((tmp & 0b10000000)==0x80) {
                 ret = bmi_read(&reg_data, (uint8_t*)data_data8, bytes_data8);
@@ -883,10 +881,10 @@ void read_write(void) {
         /* Calcular RMS y enviar resultados a la ESP32 */
         for (int i=0; i<3; i++) {
             acc_rms[i] = calcular_rms(acc_ms[i], WINDOW_SIZE);
-            gyr_rms[i] = calcular_rms(gyr_rms[i], WINDOW_SIZE);
+            gyr_rms[i] = calcular_rms(&gyr_rms[i], WINDOW_SIZE);
 
-            serial_write(acc_rms[i], sizeof(float));
-            serial_write(gyr_rms[i], sizeof(float));
+            serial_write(&acc_rms[i], sizeof(float));
+            serial_write(&gyr_rms[i], sizeof(float));
         }
 
         /* Calcular FFT y enviar resultados a la ESP32 */
@@ -933,6 +931,6 @@ void app_main(void) {
     uart_setup();
     uart_begin();
     /* ... lectura ... */
-    read_write()
+    read_write();
     
 }
