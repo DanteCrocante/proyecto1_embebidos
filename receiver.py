@@ -69,15 +69,15 @@ def receive_peaks():
     """ Funcion que recibe 5 picos por eje (x, y, z) de la ESP32 
     y los imprime en consola """
     time.sleep(2)
-    peaks = [0] * 5
-    for i in range(5):
-        data = ser.read(4 * 5)  # 4 bytes por float
-        if data is None:
-            print("No se recibieron datos de Peaks")
-            return []
-        peaks[i] = unpack(5*'f', data)[0]
-    print(f"Picos recibidos: {peaks}")
-    return peaks
+    peaks = ser.read(5 * 4)  # 4 bytes por float
+    if peaks is None:
+        print("No se recibieron datos")
+        return []
+    print(f"Peaks de datos recibida: {len(peaks)} elementos")
+    if len(peaks) != 5 * 4:
+        print(f"Error: se esperaban {5} datos, pero se recibieron {len(peaks)}")
+        return []
+    return unpack(5 * 'f', peaks)
 
 
 def send_continue_message():
@@ -103,7 +103,8 @@ counter = 0
 err_counter = 0
 rms_ok = False
 # Ventanas de acelerómetro y giroscopio (por eje)
-ventana_acc_x, ventana_acc_y, ventana_acc_z = [], [], []
+ventana_acc_x_ms, ventana_acc_y_ms, ventana_acc_z_ms = [], [], []
+ventana_acc_x_g, ventana_acc_y_g, ventana_acc_z_g = [], [], []
 ventana_gyro_x, ventana_gyro_y, ventana_gyro_z = [], [], []
 
 # RMS: lista con 3 primeros para m/s², siguientes 3 G y ultimos 3 Rad/s
@@ -125,23 +126,41 @@ while True:
     if ser.in_waiting > 0:
         try:
             # Recibir ventana de datos
-            ventana_acc_x = receive_ventana()
-            print(ventana_acc_x)
+            ventana_acc_x_ms = receive_ventana()
             time.sleep(2)
-            ventana_acc_y = receive_ventana()
+            ventana_acc_y_ms = receive_ventana()
             time.sleep(2)
-            ventana_acc_z = receive_ventana()
+            ventana_acc_z_ms = receive_ventana()
             time.sleep(2)
+            ventana_acc_x_g = receive_ventana()
+            time.sleep(2)
+            ventana_acc_y_g = receive_ventana()
+            time.sleep(2)
+            ventana_acc_z_g = receive_ventana()
+            time.sleep(2)
+            print("Ventanas de acelerómetro recibidas correctamente")
             ventana_gyro_x = receive_ventana()
             time.sleep(2)
             ventana_gyro_y = receive_ventana()
             time.sleep(2)
             ventana_gyro_z = receive_ventana()
+            print("Ventanas de giroscopio recibidas correctamente")
+            print("Ventanas recibidas correctamente")
+            print(f"Ventana Acc X  m/s²: {ventana_acc_x_ms}")
+            print(f"Ventana Acc Y  m/s²: {ventana_acc_y_ms}")
+            print(f"Ventana Acc Z  m/s²: {ventana_acc_z_ms}")
+            print(f"Ventana Acc X  G: {ventana_acc_x_g}")
+            print(f"Ventana Acc Y  G: {ventana_acc_y_g}")
+            print(f"Ventana Acc Z  G: {ventana_acc_z_g}")
+            print(f"Ventana Gyro X  rad/s: {ventana_gyro_x}")
+            print(f"Ventana Gyro Y  rad/s: {ventana_gyro_y}")
+            print(f"Ventana Gyro Z  rad/s: {ventana_gyro_z}")
             time.sleep(3)
             # Recibir RMS
             rms = receive_rms()
+            print("RMS recibidas correctamente")
+            print(f"RMS (X, Y, Z): {rms[0:3]} m/s², {rms[3:6]} G, {rms[6:9]} rad/s")
             time.sleep(2)
-            print(rms)
             #Recibir FFT
             # parte real
             for i in range(3):
@@ -165,15 +184,37 @@ while True:
             for i in range(3):
                 fft_gyro_rad_im[i] = receive_ventana()
                 time.sleep(2)
-                
+            print("FFT recibidas correctamente")
+            print(f"FFT Acc X m/s²: {fft_acc_ms_re[0]} (Re), {fft_acc_ms_im[0]} (Im)")
+            print(f"FFT Acc Y m/s²: {fft_acc_ms_re[1]} (Re), {fft_acc_ms_im[1]} (Im)")
+            print(f"FFT Acc Z m/s²: {fft_acc_ms_re[2]} (Re), {fft_acc_ms_im[2]} (Im)")
+            print(f"FFT Acc X G: {fft_acc_g_re[0]} (Re), {fft_acc_g_im[0]} (Im)")
+            print(f"FFT Acc Y G: {fft_acc_g_re[1]} (Re), {fft_acc_g_im[1]} (Im)")
+            print(f"FFT Acc Z G: {fft_acc_g_re[2]} (Re), {fft_acc_g_im[2]} (Im)")
+            print(f"FFT Gyro X rad/s: {fft_gyro_rad_re[0]} (Re), {fft_gyro_rad_im[0]} (Im)")
+            print(f"FFT Gyro Y rad/s: {fft_gyro_rad_re[1]} (Re), {fft_gyro_rad_im[1]} (Im)")
+            print(f"FFT Gyro Z rad/s: {fft_gyro_rad_re[2]} (Re), {fft_gyro_rad_im[2]} (Im)")
             # Recibir Peaks
             time.sleep(2)
-            peaks_acc_ms[0] = receive_peaks()
-            time.sleep(2)
-            peaks_acc_g[1] = receive_peaks()
-            time.sleep(2)
-            peaks_gyro_rad[2] = receive_peaks()
-            time.sleep(2)
+            for i in range(3):
+                peaks_acc_ms[i] = receive_peaks()
+                time.sleep(2)
+            for i in range(3):
+                peaks_acc_g[i] = receive_peaks()
+                time.sleep(2)
+            for i in range(3):
+                peaks_gyro_rad[i] = receive_peaks()
+                time.sleep(2)
+            print("Peaks recibidos correctamente")
+            print(f"Peaks Acc X m/s²: {peaks_acc_ms[0]}")
+            print(f"Peaks Acc Y m/s²: {peaks_acc_ms[1]}")
+            print(f"Peaks Acc Z m/s²: {peaks_acc_ms[2]}")
+            print(f"Peaks Acc X G: {peaks_acc_g[0]}")
+            print(f"Peaks Acc Y G: {peaks_acc_g[1]}")
+            print(f"Peaks Acc Z G: {peaks_acc_g[2]}")
+            print(f"Peaks Gyro X rad/s: {peaks_gyro_rad[0]}")
+            print(f"Peaks Gyro Y rad/s: {peaks_gyro_rad[1]}")
+            print(f"Peaks Gyro Z rad/s: {peaks_gyro_rad[2]}")
             counter += 1
             print(f'Lectura {counter} completada')
 
