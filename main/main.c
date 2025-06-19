@@ -697,13 +697,7 @@ void lectura(void) {
     
     while (1) {
         
-        // Esperar mensaje ok
-        while (1) {
-            rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataCON, sizeof(dataCON), 100 / portTICK_PERIOD_MS);
-            if (rLen > 0 && strncmp(dataCON, "BEGIN", 5) == 0) {
-                break; // salir del bucle si se recibe "BEGIN"
-            }
-        }
+        
         // medir hasta llenar ventanas
         for (int i=0; i<WINDOW_LENGTH; i++) {
             bmi_read(&reg_intstatus, &tmp, 1);
@@ -733,7 +727,8 @@ void lectura(void) {
             }
         }
         
-        // ===============>> enviar data vía UART
+        
+
         float *datas[9];
         datas[0] = acc_ms_x;
         datas[1] = acc_ms_y;
@@ -747,13 +742,7 @@ void lectura(void) {
         for (int j = 0; j < 9; j++) {
             // Enviar cada dato de la ventana
             uart_send_ventana(datas[j]); 
-            // Esperar mensaje CONTINUE
-            while (1) {
-                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataCON, sizeof(dataCON), 100 / portTICK_PERIOD_MS);
-                if (rLen > 0 && strncmp(dataCON, "CONTINUE\0", 9) == 0) {
-                    break; // salir del bucle si se recibe "CONTINUE"
-                }
-            }
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
 
         // Calcular RMS
@@ -770,15 +759,8 @@ void lectura(void) {
 
         // enviar bytes
         for (int j = 0; j < 9; j++) {
-            // Enviar cada dato de la ventana
-            uart_send_rms(&data[j]); 
-            // Esperar mensaje CONTINUE
-            while (1) {
-                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataCON, sizeof(dataCON), 100 / portTICK_PERIOD_MS);
-                if (rLen > 0 && strncmp(dataCON, "CONTINUE\0", 9) == 0) {
-                    break; // salir del bucle si se recibe "CONTINUE"
-                }
-            }
+            uart_send_rms(&data[j]);
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
         // Calcular FFT
         calcularFFT(acc_ms_x, WINDOW_LENGTH, fft_acc_ms_x_re, fft_acc_ms_x_im);
@@ -815,17 +797,15 @@ void lectura(void) {
         data_im[8] = fft_gyr_rad_z_im;
 
         // enviar bytes
-        // ...0
+        // parte real
         for (int j = 0; j < 9; j++) {
-            // Enviar cada dato de la ventana
-            uart_send_fft(data_re[j], data_im[j]); 
-            // Esperar mensaje CONTINUE
-            while (1) {
-                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataCON, sizeof(dataCON), 100 / portTICK_PERIOD_MS);
-                if (rLen > 0 && strncmp(dataCON, "CONTINUE\0", 9) == 0) {
-                    break; // salir del bucle si se recibe "CONTINUE"
-                }
-            }
+            uart_send_ventana(data_re[j]);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        // parte imaginaria
+        for (int j = 0; j < 9; j++) {
+            uart_send_ventana(data_im[j]);
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
 
 
@@ -852,15 +832,8 @@ void lectura(void) {
 
         // enviar peaks
         for (int j = 0; j < 9; j++) {
-            // Enviar cada dato de la ventana
-            uart_send_peaks(&data[j]); 
-            // Esperar mensaje CONTINUE
-            while (1) {
-                rLen = uart_read_bytes(UART_NUM, (uint8_t*)dataCON, sizeof(dataCON), 100 / portTICK_PERIOD_MS);
-                if (rLen > 0 && strncmp(dataCON, "CONTINUE\0", 9) == 0) {
-                    break; // salir del bucle si se recibe "CONTINUE"
-                }
-            }
+            uart_send_peaks(&data[j]);
+            vTaskDelay(pdMS_TO_TICKS(1000));
         }
         uart_end(); // enviar mensaje END
     }

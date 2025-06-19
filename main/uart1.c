@@ -74,68 +74,16 @@ static void uart_end() {
 }
 
 static void uart_send_ventana(float *data) {
-    char dataResponse2[4];
-    while(1) {
-        const char *dataToSend = (const char *)data;
-        int len_data = WINDOW_LENGTH * sizeof(float);
-        uart_write_bytes(UART_NUM, dataToSend, len_data);
-        int rLen = serial_read(dataResponse2, 4);
-        if (rLen > 0) {
-            if (strcmp(dataResponse2, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));  // Delay for 1 second
-
-    }
+    const char *dataToSend = (const char *)data;
+    uart_write_bytes(UART_NUM, (const char *)data, WINDOW_LENGTH * sizeof(float));
 }
 
 static void uart_send_peaks(float *data) {
-    char dataResponse2[4];
-    while(1) {
-        const char *dataToSend = (const char *)data;
-        int len_data = 5 * sizeof(float);
-        uart_write_bytes(UART_NUM, dataToSend, len_data);
-        int rLen = serial_read(dataResponse2, 4);
-        if (rLen > 0) {
-            if (strcmp(dataResponse2, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));  // Delay for 1 second
-    }
+    const char *dataToSend = (const char *)data;
+    uart_write_bytes(UART_NUM, dataToSend, 5 * sizeof(float));
 }
 
 static void uart_send_rms(float *data) {
-    char dataResponse2[4];
-    while(1) {
-        const char *dataToSend = (const char *)data;
-        int len_data = 9 * sizeof(float);
-        uart_write_bytes(UART_NUM, dataToSend, len_data);
-        int rLen = serial_read(dataResponse2, 4);
-        if (rLen > 0) {
-            if (strcmp(dataResponse2, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));  // Delay for 1 second
-    }
-}
-
-static void uart_send_fft(float *data_re, float *data_im) {
-    char dataResponse2[4];
-    while(1) {
-        const char *dataToSend_re = (const char *)data_re;
-        const char *dataToSend_im = (const char *)data_im;
-        int len_data = sizeof(float) * WINDOW_LENGTH;
-        uart_write_bytes(UART_NUM, dataToSend_re, len_data);
-        uart_write_bytes(UART_NUM, dataToSend_im, len_data);
-        int rLen = serial_read(dataResponse2, 4);
-        if (rLen > 0) {
-            if (strcmp(dataResponse2, "END") == 0) {
-                break;
-            }
-        }
-        vTaskDelay(pdMS_TO_TICKS(1000));  // Delay for 1 second
-    }
+   const char *dataToSend = (const char *)data;
+   uart_write_bytes(UART_NUM, dataToSend, sizeof(float));
 }
