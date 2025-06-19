@@ -758,10 +758,10 @@ void lectura(void) {
         data[8] = RMS(gyr_rad_z, WINDOW_LENGTH);
 
         // enviar bytes
-        for (int j = 0; j < 9; j++) {
-            uart_send_rms(&data[j]);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        
+        uart_send_rms(data);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        
         // Calcular FFT
         calcularFFT(acc_ms_x, WINDOW_LENGTH, fft_acc_ms_x_re, fft_acc_ms_x_im);
         calcularFFT(acc_ms_y, WINDOW_LENGTH, fft_acc_ms_y_re, fft_acc_ms_y_im);

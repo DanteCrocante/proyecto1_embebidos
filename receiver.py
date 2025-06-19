@@ -55,15 +55,15 @@ def receive_rms():
     (que representan las rms) para tres ejes (x, y, z)
     y en m/s^2, G y Rad/s """
     time.sleep(2)
-    rms = [0.0] * 9
-    for i in range(9):
-        data = ser.read(4)  # 4 bytes por float
-        if data is None:
-            print("No se recibieron datos de RMS")
-            return []
-        rms[i] = unpack('f', data)[0]
-    print(f"RMS recibidas: {rms}")
-    return rms
+    rms = ser.read(9 * 4) # 4 bytes por float
+    if rms is None:
+        print("No se recibieron datos")
+        return []
+    print(f"rms de datos recibida: {len(rms)} elementos")
+    if len(rms) != 9 * 4:
+        print(f"Error: se esperaban {9} datos, pero se recibieron {len(rms)}")
+        return []
+    return unpack(9 * 'f', rms)
 
 def receive_peaks():
     """ Funcion que recibe 5 picos por eje (x, y, z) de la ESP32 
@@ -106,10 +106,8 @@ rms_ok = False
 ventana_acc_x, ventana_acc_y, ventana_acc_z = [], [], []
 ventana_gyro_x, ventana_gyro_y, ventana_gyro_z = [], [], []
 
-# RMS: cada lista tiene 3 valores, uno por eje
-rms_acc_ms = [0.0] * 3
-rms_acc_g = [0.0] * 3
-rms_gyro_rad = [0.0] * 3
+# RMS: lista con 3 primeros para m/s², siguientes 3 G y ultimos 3 Rad/s
+rms= []
 
 # FFT: listas de 20 valores por eje 
 fft_acc_ms_re = [[], [], []]  # X, Y, Z
@@ -128,6 +126,7 @@ while True:
         try:
             # Recibir ventana de datos
             ventana_acc_x = receive_ventana()
+            print(ventana_acc_x)
             time.sleep(2)
             ventana_acc_y = receive_ventana()
             time.sleep(2)
@@ -138,14 +137,11 @@ while True:
             ventana_gyro_y = receive_ventana()
             time.sleep(2)
             ventana_gyro_z = receive_ventana()
-            time.sleep(2)
+            time.sleep(3)
             # Recibir RMS
-            rms_acc_ms[0] = receive_rms()
+            rms = receive_rms()
             time.sleep(2)
-            rms_acc_g[1] = receive_rms()
-            time.sleep(2)
-            rms_gyro_rad[2] = receive_rms()
-            time.sleep(2)
+            print(rms)
             #Recibir FFT
             # parte real
             for i in range(3):

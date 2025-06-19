@@ -75,7 +75,7 @@ static void uart_end() {
 
 static void uart_send_ventana(float *data) {
     const char *dataToSend = (const char *)data;
-    uart_write_bytes(UART_NUM, (const char *)data, WINDOW_LENGTH * sizeof(float));
+    uart_write_bytes(UART_NUM, dataToSend, WINDOW_LENGTH * sizeof(float));
 }
 
 static void uart_send_peaks(float *data) {
@@ -84,6 +84,6 @@ static void uart_send_peaks(float *data) {
 }
 
 static void uart_send_rms(float *data) {
-   const char *dataToSend = (const char *)data;
-   uart_write_bytes(UART_NUM, dataToSend, sizeof(float));
+    const char *dataToSend = (const char *)data;
+    uart_write_bytes(UART_NUM, dataToSend, 9 * sizeof(float));
 }
