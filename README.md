@@ -7,7 +7,7 @@
 
         `source .env/bin/activate`
 
-        `python -m pip -r requirements.txt`
+        `pip install -r requirements.txt`
 
         `deactivate`
 
