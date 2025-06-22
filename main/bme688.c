@@ -422,6 +422,88 @@ void bme_get_mode(void) {
     printf("Valor de BME MODE: %2X \n\n", tmp);
 }
 
+// Lectura de datos del BME688 en modo paralelo
+void bme_read_data_parallel(void) {
+    // Esperar nuevo dato
+    uint8_t status;
+    do {
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x1D}, &status, 1);
+        vTaskDelay(pdMS_TO_TICKS(10));
+    } while ((status & 0x80) == 0); // bit 7 = new_data
+
+    // Lectura de datos
+    uint8_t tmp;
+    uint32_t temp_adc = 0, press_adc = 0, hum_adc = 0;
+    uint16_t gas_res_adc;
+    uint8_t gas_range;
+
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x22}, &tmp, 1); temp_adc |= tmp << 12;
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x23}, &tmp, 1); temp_adc |= tmp << 4;
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x24}, &tmp, 1); temp_adc |= (tmp >> 4);
+
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x1F}, &tmp, 1); press_adc |= tmp << 12;
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x20}, &tmp, 1); press_adc |= tmp << 4;
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x21}, &tmp, 1); press_adc |= (tmp >> 4);
+
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x25}, &tmp, 1); hum_adc |= tmp << 8;
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x26}, &tmp, 1); hum_adc |= tmp;
+
+    uint8_t gas_data[2];
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x2A}, &gas_data[0], 1);
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x2B}, &gas_data[1], 1);
+    gas_res_adc = ((uint16_t)gas_data[0] << 2) | ((gas_data[1] & 0xC0) >> 6);
+    gas_range = gas_data[1] & 0x0F;
+
+    int32_t temp = bme_temp_celsius(temp_adc);
+
+    printf("Temp: %.2f °C\n", (float)temp / 100);
+    printf("Presión ADC: %u\n", press_adc);
+    printf("Humedad ADC: %u\n", hum_adc);
+    printf("Gas ADC: %u | Range: %u\n", gas_res_adc, gas_range);
+}
+
+// Lectura de datos del BME688 en modo forzado
+void bme_read_data_forced(void) {
+    uint8_t tmp;
+
+    // Se obtienen los datos de temperatura
+    uint8_t forced_temp_addr[] = {0x22, 0x23, 0x24};
+    uint32_t temp_adc = 0;
+    // Datasheet[41]
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
+    // obtener los datos de temperatura
+    bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
+    temp_adc = temp_adc | tmp << 12;
+    bme_i2c_read(I2C_NUM_0, &forced_temp_addr[1], &tmp, 1);
+    temp_adc = temp_adc | tmp << 4;
+    bme_i2c_read(I2C_NUM_0, &forced_temp_addr[2], &tmp, 1);
+    temp_adc = temp_adc | (tmp & 0xf0) >> 4;
+
+    uint32_t temp = bme_temp_celsius(temp_adc);
+    printf("Temperatura: %f\n", (float)temp / 100);
+
+    // Se obtienen los datos de humedad
+    // Humedad - registros 0x25 (MSB), 0x26 (LSB), parte de 0x27
+    uint8_t hum_data[2];
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x25}, &hum_data[0], 1);
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x26}, &hum_data[1], 1);
+    uint16_t hum_adc = ((uint16_t)hum_data[0] << 8) | hum_data[1];
+    // Se obtienen los datos de presion
+    // Presion - registros 0x1F (MSB), 0x20 (LSB), parte de 0x21
+    uint8_t pres_data[2];
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x1F}, &pres_data[0], 1);
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x20}, &pres_data[1], 1);
+    uint32_t pres_adc = ((uint32_t)pres_data[0] << 12) | ((uint32_t)pres_data[1] << 4);
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x21}, &tmp, 1);
+    pres_adc = pres_adc | (tmp & 0xF0) >> 4;
+    // Se obtienen los datos de gas
+    // Gas - registros 0x2A (MSB), 0x2B (LSB), parte de 0x2C
+    uint8_t gas_data[2];
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x2A}, &gas_data[0], 1);
+    bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x2B}, &gas_data[1], 1);
+    uint16_t gas_adc = ((uint16_t)gas_data[0] << 8) | gas_data[1];
+}
+/*
 void bme_read_data(void) {
     // Datasheet[23:41]
     // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
@@ -435,7 +517,7 @@ void bme_read_data(void) {
         bme_forced_mode();
         // Datasheet[41]
         // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=41
-
+        // obtener los datos de temperatura
         bme_i2c_read(I2C_NUM_0, &forced_temp_addr[0], &tmp, 1);
         temp_adc = temp_adc | tmp << 12;
         bme_i2c_read(I2C_NUM_0, &forced_temp_addr[1], &tmp, 1);
@@ -445,9 +527,41 @@ void bme_read_data(void) {
 
         uint32_t temp = bme_temp_celsius(temp_adc);
         printf("Temperatura: %f\n", (float)temp / 100);
+
+        // Se obtienen los datos de humedad
+        // Humedad - registros 0x25 (MSB), 0x26 (LSB), parte de 0x27
+        uint8_t hum_data[2];
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x25}, &hum_data[0], 1);
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x26}, &hum_data[1], 1);
+        uint16_t hum_adc = ((uint16_t)hum_data[0] << 8) | hum_data[1];
+        // Se obtienen los datos de presion
+        // Presion - registros 0x1F (MSB), 0x20 (LSB), parte de 0x21
+        uint8_t pres_data[2];
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x1F}, &pres_data[0], 1);
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x20}, &pres_data[1], 1);
+        uint32_t pres_adc = ((uint32_t)pres_data[0] << 12) | ((uint32_t)pres_data[1] << 4);
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x21}, &tmp, 1);
+        pres_adc = pres_adc | (tmp & 0xF0) >> 4;
+        // Se obtienen los datos de gas
+        // Gas - registros 0x2A (MSB), 0x2B (LSB), parte de 0x2C
+        uint8_t gas_data[2];
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x2A}, &gas_data[0], 1);
+        bme_i2c_read(I2C_NUM_0, (uint8_t[]){0x2B}, &gas_data[1], 1);
+        uint16_t gas_adc = ((uint16_t)gas_data[0] << 8) | gas_data[1];
+        
     }
 }
+*/
+void bme_read_data(void) {
+    // Datasheet[23:41]
+    // https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme688-ds000.pdf#page=23
 
+    if (bme_check_forced_mode()) {
+        bme_read_data_forced();
+    } else {
+        bme_read_data_parallel();
+    }
+}
 void app_main(void) {
     ESP_ERROR_CHECK(sensor_init());
     bme_get_chipid();
